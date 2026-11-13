@@ -24,7 +24,47 @@
   "guOyZBnSKXg": "2026-11-14",
   "6lRcMh5Yphg": "2026-11-14",
   "rRHaGtUMs_0": "2026-11-14",
-  "tH0Z2OvHAd8": "2026-11-14"
+  "tH0Z2OvHAd8": "2026-11-14",
+  "spQ7IFksP9g": "2026-11-14",
+  "FewtLNsjtRA": "2026-11-14",
+  "-njP5eg7kUQ": "2026-11-14",
+  "1ONhXmQuWP8": "2026-11-14",
+  "9wCnvr7Xw4E": "2026-11-14",
+  "p3yJZH8_bsc": "2026-11-14",
+  "qBXmbJZQ5rY": "2026-11-14",
+  "Cp9hT3NmIEg": "2026-11-14",
+  "2BP8NhxjrO0": "2026-11-14",
+  "HZGCoVF3YvM": "2026-11-14",
+  "G5uZwldBzG4": "2026-11-14",
+  "xiGgrQioF2E": "2026-11-14",
+  "4MFg-iGe5Ec": "2026-11-14",
+  "X8nYM8wdNRE": "2026-11-14",
+  "pYxNSUDSFH4": "2026-11-14",
+  "nUKRBWVDNlA": "2026-11-14",
+  "wvPe4Zb0tUA": "2026-11-14",
+  "g16wZWKcao4": "2026-11-14",
+  "oIV2KchSyGQ": "2026-11-14",
+  "XepXtl9YKwc": "2026-11-14",
+  "8L-PKidIH-U": "2026-11-14",
+  "0pMm_QxCg3I": "2026-11-14",
+  "H7Ayro83-jQ": "2026-11-14",
+  "43qyUASBeUc": "2026-11-14",
+  "YAlJCEDH2uY": "2026-11-14",
+  "XhVS97buHi8": "2026-11-14",
+  "rYodcvhh7b8": "2026-11-14",
+  "JnPB_5jMjrU": "2026-11-14",
+  "AUT201AXeJg": "2026-11-14",
+  "vemZtEM63GY": "2026-11-14",
+  "tii7xcFilOA": "2026-11-14",
+  "lMGWJZLTulY": "2026-11-14",
+  "Axx2xuB-Xuo": "2026-11-14",
+  "YNMH8UBFOKU": "2026-11-14",
+  "PFDu9oVAE-g": "2026-11-14",
+  "GkBf2dZAES0": "2026-11-14",
+  "NhpzBldHOYo": "2026-11-14",
+  "HLBoEFQkE8U": "2026-11-14",
+  "hxGOiiR9ZKg": "2026-11-14",
+  "gXbThCXjZFM": "2026-11-14"
  },
  "runs": [
   {
@@ -54,6 +94,20 @@
     "dbms": 1
    },
    "cost_usd": 0.5295
+  },
+  {
+   "date": "2026-11-14",
+   "clips": 23,
+   "lectures": 39,
+   "shorts": 1,
+   "byTopic": {
+    "coa": 7,
+    "aiml": 5,
+    "dbms": 6,
+    "cn": 1,
+    "cpp": 4
+   },
+   "cost_usd": 0.9394
   }
  ],
  "channel_names": {
