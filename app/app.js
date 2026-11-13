@@ -127,7 +127,7 @@ function reelHTML(item) {
       </div>
       <h3>${esc(c.title)}</h3>
       <p class="hook">${esc(c.hook)}</p>
-      <div class="meta">${esc(c.channel)} · ${fmt(c.end - c.start)}</div>
+      <div class="meta">${esc(c.channel)} · ${fmt(c.end - c.start)}${c.src && c.src.startsWith('prephub') ? ` · ${esc(c.subtopic)}` : ''}</div>
       <button class="more">more</button>
       <p class="summary">${esc(c.summary)}<br><span class="small">From: ${esc(c.videoTitle)}</span></p>
     </div>

@@ -40,6 +40,7 @@ STATE_PATH = os.path.join(PIPE, "state.json")
 CONFIG_PATH = os.path.join(PIPE, "config.json")
 FEEDBACK_DIR = os.path.join(PIPE, "feedback")
 LOG_DIR = os.path.join(PIPE, "logs")
+LLM_CACHE = os.path.join(PIPE, "cache", "llm")  # raw Claude output per video, incl. rejected clips
 YTDLP = os.path.join(ROOT, ".venv", "bin", "yt-dlp")
 CLAUDE = shutil.which("claude") or os.path.expanduser("~/.local/bin/claude")
 
@@ -405,6 +406,7 @@ def make_clip(video, meta, topic_key, subtopic, c, start, end, kind, seq):
         "quiz": clean_quiz(c.get("quiz")),
         "added": TODAY,
         "seq": seq,
+        "src": video.get("src", "search"),
     }
 
 
@@ -417,6 +419,8 @@ def process_lecture(job, cfg):
     out, cost = claude_json(lecture_prompt(video, meta, topic, subtopic, blocks), LECTURE_SCHEMA, cfg)
     if not out:
         return [], cost
+    save_json(os.path.join(LLM_CACHE, f"{video['id']}.json"),
+              {"video": video, "topic": topic_key, "subtopic": subtopic, "kind": "lecture", "out": out})
     clips, last_end = [], -1
     dur = meta["duration"] or video["duration"]
     for i, c in enumerate(sorted(out.get("clips", []), key=lambda c: c["start"])):
@@ -437,6 +441,9 @@ def process_short(job, cfg, state):
     if not snips:
         return [], 0.0
     out, cost = claude_json(short_prompt(video, meta, topic, subtopic, transcript_blocks(snips, 5)), SHORT_SCHEMA, cfg)
+    if out:
+        save_json(os.path.join(LLM_CACHE, f"{video['id']}.json"),
+                  {"video": video, "topic": topic_key, "subtopic": subtopic, "kind": "short", "out": out})
     if not out or not out.get("educational"):
         log(f"  short '{video['title'][:50]}': rejected (not educational)")
         return [], cost
@@ -537,6 +544,43 @@ def git_publish(n_new):
         log("git push:", "ok" if r.returncode == 0 else r.stderr.strip()[-200:])
 
 
+# ---------------------------------------------------------------- Prep Hub syllabus
+
+def prephub_queue(cfg, state, topic_keys):
+    """Unprocessed Prep Hub Video Picks in syllabus order, interleaved across topics.
+
+    Reads ~/Desktop/prep-hub/videos/content/<topic>.json (the curated picks: subtopics in
+    course order, videos in watching order). Returns [(cs_reels_topic, item), ...]."""
+    ph = cfg.get("prephub")
+    if not ph:
+        return []
+    root = os.path.expanduser(ph["content_dir"])
+    per = {}
+    for src, dst in ph["map"].items():
+        if dst not in topic_keys:
+            continue
+        d = load_json(os.path.join(root, f"{src}.json"), None)
+        if not d:
+            log(f"  prep-hub: {src}.json not found in {root}")
+            continue
+        for s in d.get("subtopics", []):
+            if s.get("key") in ph.get("skip_subtopics", []):
+                continue
+            for p in s.get("picks", []):
+                if p.get("kind") != "v" or p["id"] in state["processed"]:
+                    continue
+                per.setdefault(dst, []).append({
+                    "id": p["id"], "title": p.get("title", ""), "channel": p.get("channel", ""),
+                    "subtopic": s.get("name", ""), "src": f"prephub:{src}",
+                })
+    out = []
+    while any(per.values()):
+        for k in list(per):
+            if per[k]:
+                out.append((k, per[k].pop(0)))
+    return out
+
+
 # ---------------------------------------------------------------- main
 
 def main():
@@ -547,6 +591,7 @@ def main():
     ap.add_argument("--topics")
     ap.add_argument("--lectures", type=int)
     ap.add_argument("--shorts", type=int)
+    ap.add_argument("--prephub", type=int, help="Prep Hub videos to process this run")
     args = ap.parse_args()
 
     global SYSTEM_PROMPT
@@ -593,6 +638,13 @@ def main():
         plan_shorts.append((k, sub))
     state["rotation"] = (rot + n_lect) % max(1, len(topic_keys))
 
+    n_ph = args.prephub if args.prephub is not None else cfg.get("prephub", {}).get("videos_per_day", 0)
+    plan_ph = prephub_queue(cfg, state, topic_keys)
+    ph_left = len(plan_ph)
+    plan_ph = plan_ph[:n_ph]
+
+    log(f"prep-hub: {len(plan_ph)} of {ph_left} remaining:",
+        "; ".join(f"{k}: {it['subtopic']}" for k, it in plan_ph[:12]) + (" ..." if len(plan_ph) > 12 else ""))
     log("lectures:", "; ".join(f"{k}: {s}" for k, s in plan_lect))
     log("shorts:  ", "; ".join(f"{k}: {s}" for k, s in plan_shorts))
     if args.plan:
@@ -600,12 +652,26 @@ def main():
 
     # Find videos (sequential: polite to YouTube).
     jobs_l, jobs_s = [], []
+    order = {}  # videoId -> position, so the feed keeps syllabus order
+    for k, it in plan_ph:
+        meta = yt_meta(it["id"])
+        state["processed"][it["id"]] = TODAY
+        if not (meta and meta["embeddable"] and meta["public"] and meta["age_limit"] == 0):
+            log(f"  prep-hub skip (not embeddable/available): {it['title'][:60]}")
+            continue
+        v = {"id": it["id"], "title": it["title"], "channel": it["channel"],
+             "duration": meta["duration"], "src": it["src"]}
+        order[v["id"]] = len(order)
+        job = (v, meta, k, cfg["topics"][k], it["subtopic"])
+        # very short videos are one reel as a whole; longer ones get cut into clips
+        (jobs_s if meta["duration"] <= 240 else jobs_l).append(job)
     for k, sub in plan_lect:
         topic = cfg["topics"][k]
         log(f"searching lecture: {k} / {sub}")
         v, meta = pick_lecture(topic, sub, cfg, state)
         if v:
             state["processed"][v["id"]] = TODAY
+            order[v["id"]] = len(order)
             jobs_l.append((v, meta, k, topic, sub))
         else:
             log("  nothing suitable from trusted channels")
@@ -633,7 +699,7 @@ def main():
     cap = cfg["daily"]["max_shorts_per_query"]
     groups = {}
     for c in all_clips:
-        if c["kind"] == "short":
+        if c["kind"] == "short" and c["src"] == "search":
             groups.setdefault((c["topic"], c["subtopic"]), []).append(c)
     drop = set()
     for g in groups.values():
@@ -641,8 +707,8 @@ def main():
         drop.update(c["id"] for c in g[cap:])
     reported = set(state.get("reported_ids", []))
     all_clips = [c for c in all_clips if c["id"] not in reported and c["id"] not in drop]
-    # Lecture clips first (in syllabus order), then shorts.
-    all_clips.sort(key=lambda c: (c["kind"] != "lecture", c["topic"], c["videoId"], c["seq"]))
+    # Prep Hub / lecture clips in syllabus order, then searched shorts.
+    all_clips.sort(key=lambda c: (order.get(c["videoId"], 10**6), c["topic"], c["videoId"], c["seq"]))
     write_outputs(all_clips)
 
     by_topic = {}

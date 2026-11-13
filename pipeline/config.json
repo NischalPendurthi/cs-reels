@@ -1,8 +1,14 @@
 {
   "audience": "a strong CS undergraduate at IIT Bombay who learns fast and wants rigorous, in-depth, university-level explanations (internals, mechanisms, trade-offs, math), not beginner-friendly overviews",
+  "prephub": {
+    "content_dir": "~/Desktop/prep-hub/videos/content",
+    "map": {"dbms": "dbms", "networks": "cn", "comp-arch": "coa", "oop": "cpp", "ml": "aiml", "llms": "aiml"},
+    "skip_subtopics": ["courses"],
+    "videos_per_day": 15
+  },
   "daily": {
-    "lectures_per_day": 8,
-    "shorts_queries_per_day": 3,
+    "lectures_per_day": 3,
+    "shorts_queries_per_day": 2,
     "max_shorts_per_query": 2,
     "lecture_min_sec": 300,
     "lecture_max_sec": 6000,

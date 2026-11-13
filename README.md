@@ -29,6 +29,14 @@ systemd/    daily timer
 
 ## How the pipeline picks content
 
+**Main source: the Prep Hub syllabus.** Each run takes the next `prephub.videos_per_day` unprocessed
+videos from `~/Desktop/prep-hub/videos/content/<topic>.json` (Video Picks), in subtopic and watching
+order, round-robin across topics, and cuts them into clips. `prephub.map` maps Prep Hub topics to CS Reels
+topics. Add `"os": "os"` there (plus an `os` entry under `topics`) to bring in another Prep Hub topic.
+Process a bigger batch now with `run-daily.sh --force --prephub 40`.
+
+**Extra variety: channel search**, as below:
+
 1. Each topic has an ordered `syllabus` in `config.json`. Every run advances along it,
    rotating topics, and wraps around when it reaches the end. Later passes pick *different* videos,
    because already-processed videos are skipped.
