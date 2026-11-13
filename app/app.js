@@ -236,112 +236,179 @@ $('#chips').addEventListener('click', e => {
   rebuildFeed();
 });
 
-/* ---------------- player ---------------- */
+/* ---------------- player ----------------
+ * ONE YouTube player for the whole feed, in a fixed layer that sits over the
+ * active reel's frame. Reusing it keeps sound permission between reels, and the
+ * iframe is taller than the visible box so YouTube's title bar / logo are cropped. */
+const NATIVE = !!window.Capacitor?.isNativePlatform?.();
+const CROP = 70; // px of YouTube chrome hidden above and below the video
 let ytReady = !!(window.YT && window.YT.Player);
-let soundOn = false;
+let soundOn = NATIVE; // the Android app allows sound without a tap
 let current = null;
 let player = null;
+let playerReady = false;
+let playerItem = null;
 let tick = null;
-let mountToken = 0;
 let watchedSec = 0;
+let started = false;
+let autoplayCheck = null;
+const layer = $('#playerLayer');
 
 window.onYouTubeIframeAPIReady = () => {
   ytReady = true;
-  if (current && queue[+current.dataset.i]?.type === 'reel' && !player) mount(current);
+  if (current) activate(current, true);
 };
 
-function activate(slide) {
-  if (slide === current) return;
+function placeLayer() {
+  if (!current || !playerItem) return;
+  const frame = $('.frame', current);
+  if (!frame) return;
+  const r = frame.getBoundingClientRect();
+  Object.assign(layer.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
+}
+
+function showLayer(on) {
+  layer.classList.toggle('on', on && started);
+}
+
+function activate(slide, force = false) {
+  if (slide === current && !force) return;
   deactivate();
   current = slide;
   const i = +slide.dataset.i;
   if (i >= rendered - 3) renderMore(6);
-  if (queue[i]?.type === 'reel' && ytReady) mount(slide);
+  const item = queue[i];
+  if (item?.type !== 'reel' || !ytReady) { if (item?.type !== 'reel') pausePlayer(); return; }
+  load(item);
 }
 
 function deactivate() {
   clearInterval(tick);
+  clearTimeout(autoplayCheck);
   tick = null;
-  mountToken++;
-  if (player) { try { player.destroy(); } catch (e) { /* already gone */ } }
-  player = null;
+  playerItem = null;
+  started = false;
+  showLayer(false);
   if (current) {
     const t = $('.thumb', current);
     if (t) t.style.opacity = 1;
     current.classList.remove('is-paused');
-    const p = $('.player', current);
-    if (p) p.innerHTML = '';
   }
   current = null;
 }
 
-function mount(slide) {
-  const item = queue[+slide.dataset.i];
-  const c = item.clip;
-  const token = ++mountToken;
-  const host = document.createElement('div');
-  $('.player', slide).appendChild(host);
-  watchedSec = 0;
-  let started = false;
-
-  player = new YT.Player(host, {
-    videoId: c.videoId,
-    width: '100%', height: '100%',
-    playerVars: {
-      start: c.start, end: c.end, autoplay: 1, playsinline: 1, controls: 0,
-      rel: 0, modestbranding: 1, iv_load_policy: 3, disablekb: 1, fs: 0, mute: soundOn ? 0 : 1,
-    },
-    events: {
-      onReady: e => {
-        if (token !== mountToken) return;
-        soundOn ? e.target.unMute() : e.target.mute();
-        e.target.playVideo();
-        // Browser blocked autoplay with sound? fall back to muted.
-        setTimeout(() => {
-          if (token !== mountToken || started) return;
-          soundOn = false;
-          e.target.mute();
-          e.target.playVideo();
-          $('#soundPill').hidden = false;
-        }, 1800);
-      },
-      onStateChange: e => {
-        if (token !== mountToken) return;
-        if (e.data === YT.PlayerState.PLAYING) {
-          started = true;
-          $('.thumb', slide).style.opacity = 0;
-          slide.classList.remove('is-paused');
-        } else if (e.data === YT.PlayerState.ENDED) {
-          e.target.seekTo(c.start, true); // loop like a reel
-          e.target.playVideo();
-        }
-      },
-      onError: () => {
-        if (token !== mountToken) return;
-        toast('This video can’t play here. Swipe on.');
-      },
-    },
-  });
-
-  clearInterval(tick);
-  tick = setInterval(() => {
-    if (token !== mountToken || !player || !player.getCurrentTime) return;
-    let t = 0;
-    try { t = player.getCurrentTime(); } catch (e) { return; }
-    if (player.getPlayerState?.() === YT.PlayerState.PLAYING) {
-      watchedSec += 0.25;
-      if (watchedSec >= SEEN_AFTER_SEC) markSeen(item);
-    }
-    const frac = Math.max(0, Math.min(1, (t - c.start) / (c.end - c.start)));
-    const bar = $('.progress i', slide);
-    if (bar) bar.style.width = (frac * 100).toFixed(1) + '%';
-    if (t >= c.end - 0.3) { player.seekTo(c.start, true); player.playVideo(); }
-  }, 250);
+function pausePlayer() {
+  if (player && playerReady) try { player.pauseVideo(); } catch (e) { /* noop */ }
 }
 
+function load(item) {
+  const c = item.clip;
+  playerItem = item;
+  watchedSec = 0;
+  started = false;
+  placeLayer();
+  if (!player) {
+    player = new YT.Player('ytHost', {
+      videoId: c.videoId,
+      width: '100%', height: '100%',
+      playerVars: {
+        start: c.start, end: c.end, autoplay: 1, playsinline: 1, controls: 0,
+        rel: 0, modestbranding: 1, iv_load_policy: 3, disablekb: 1, fs: 0, cc_load_policy: 0,
+      },
+      events: {
+        onReady: e => {
+          playerReady = true;
+          if (soundOn) e.target.unMute(); else e.target.mute();
+          if (playerItem) {
+            const pc = playerItem.clip;
+            if (pc.videoId !== c.videoId || pc.start !== c.start) e.target.loadVideoById({ videoId: pc.videoId, startSeconds: pc.start, endSeconds: pc.end });
+            else e.target.playVideo();
+            armAutoplayCheck();
+          }
+        },
+        onStateChange: onState,
+        onError: () => { if (playerItem) toast('This video can’t play here. Swipe on.'); },
+      },
+    });
+  } else if (playerReady) {
+    if (soundOn) player.unMute();
+    player.loadVideoById({ videoId: c.videoId, startSeconds: c.start, endSeconds: c.end });
+    armAutoplayCheck();
+  }
+  clearInterval(tick);
+  tick = setInterval(onTick, 250);
+}
+
+// If the browser refuses to play with sound (no tap yet), play muted and offer a sound button.
+function armAutoplayCheck() {
+  clearTimeout(autoplayCheck);
+  const item = playerItem;
+  autoplayCheck = setTimeout(() => {
+    if (playerItem !== item || started || !player) return;
+    soundOn = false;
+    player.mute();
+    player.playVideo();
+    $('#soundPill').hidden = false;
+  }, 2000);
+}
+
+function onState(e) {
+  if (!playerItem || !current) return;
+  const c = playerItem.clip;
+  if (e.data === YT.PlayerState.PLAYING) {
+    // ignore the old video still playing for a moment after a switch
+    const vid = player.getVideoData?.().video_id;
+    if (vid && vid !== c.videoId) return;
+    started = true;
+    $('.thumb', current).style.opacity = 0;
+    current.classList.remove('is-paused');
+    placeLayer();
+    showLayer(!scrolling);
+  } else if (e.data === YT.PlayerState.ENDED) {
+    player.seekTo(c.start, true); // loop like a reel
+    player.playVideo();
+  }
+}
+
+function onTick() {
+  if (!playerItem || !current || !playerReady) return;
+  const c = playerItem.clip;
+  let t = 0;
+  try { t = player.getCurrentTime(); } catch (e) { return; }
+  if (player.getVideoData?.().video_id !== c.videoId) return;
+  if (player.getPlayerState() === YT.PlayerState.PLAYING) {
+    watchedSec += 0.25;
+    if (watchedSec >= SEEN_AFTER_SEC) markSeen(playerItem);
+  }
+  const frac = Math.max(0, Math.min(1, (t - c.start) / (c.end - c.start)));
+  const bar = $('.progress i', current);
+  if (bar) bar.style.width = (frac * 100).toFixed(1) + '%';
+  if (t >= c.end - 0.4) { player.seekTo(c.start, true); player.playVideo(); }
+}
+
+// Hide the fixed player while the feed moves; show it again once the swipe settles.
+let scrolling = false;
+let scrollTimer = null;
+function settle() {
+  scrolling = false;
+  placeLayer();
+  showLayer(true);
+}
+feed.addEventListener('scroll', () => {
+  if (!scrolling) { scrolling = true; showLayer(false); }
+  clearTimeout(scrollTimer);
+  scrollTimer = setTimeout(settle, 140);
+}, { passive: true });
+if ('onscrollend' in window) feed.addEventListener('scrollend', () => { clearTimeout(scrollTimer); settle(); });
+window.addEventListener('resize', placeLayer);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) pausePlayer();
+  else if (player && playerItem && current && !current.classList.contains('is-paused')) try { player.playVideo(); } catch (e) { /* noop */ }
+});
+
 function togglePause() {
-  if (!player || !current) return;
-  const st = player.getPlayerState?.();
+  if (!player || !current || !playerReady) return;
+  const st = player.getPlayerState();
   if (st === YT.PlayerState.PLAYING) { player.pauseVideo(); current.classList.add('is-paused'); }
   else { player.playVideo(); current.classList.remove('is-paused'); }
 }
@@ -349,7 +416,7 @@ function togglePause() {
 function enableSound() {
   soundOn = true;
   $('#soundPill').hidden = true;
-  if (player) { try { player.unMute(); player.playVideo(); } catch (e) { /* not ready */ } }
+  if (player && playerReady) { try { player.unMute(); player.setVolume(100); player.playVideo(); } catch (e) { /* not ready */ } }
 }
 $('#soundPill').addEventListener('click', enableSound);
 
@@ -360,7 +427,7 @@ function markSeen(item) {
   item._counted = true;
   S.seen[c.id] = Date.now();
   const d = today();
-  if (!S.days.includes(d)) S.days.push(d);
+  if (!S.days.includes(d)) { S.days.push(d); save(); scheduleNotifications(); }
   if (item.revision && S.liked[c.id]) {
     const l = S.liked[c.id];
     l.stage = (l.stage || 0) + 1;
@@ -509,6 +576,9 @@ function openSheet() {
     <p class="small">${Object.keys(S.liked).length} saved clips · ${due} due for revision now</p>
     <h3>Library</h3>
     <p class="small">${clips.length} clips · last updated ${esc(updated)}</p>
+    ${LN ? `<h3>Reminders</h3>
+    <p class="small">Morning “new clips” at ${MORNING_HOUR}:00 and a ${EVENING_HOUR}:00 streak nudge (skipped if you already watched today).</p>
+    <div class="row" style="display:flex;gap:10px"><button class="secondary" id="notifyBtn">${S.notify === false ? 'Turn reminders on' : 'Turn reminders off'}</button></div>` : ''}
     <h3>Feedback</h3>
     <p class="small">${Object.keys(S.reported).length} reported clips. Export and drop the file in <code>~/cs-reels/pipeline/feedback/</code>. The next daily run removes them and blocks channels with repeated reports.</p>
     <div class="row" style="display:flex;gap:10px;flex-wrap:wrap">
@@ -527,6 +597,13 @@ $('#sheetClose').addEventListener('click', closeSheet);
 $('#sheet').addEventListener('click', e => {
   if (e.target.id === 'sheet') return closeSheet();
   if (e.target.id === 'exportBtn') exportFeedback();
+  if (e.target.id === 'notifyBtn') {
+    S.notify = S.notify === false;
+    save();
+    scheduleNotifications();
+    e.target.textContent = S.notify === false ? 'Turn reminders on' : 'Turn reminders off';
+    toast(S.notify === false ? 'Reminders off' : 'Reminders on');
+  }
   if (e.target.id === 'resetBtn' && confirm('Forget watched clips, likes, quiz answers and reports on this device?')) {
     S = Object.assign(loadState(), { seen: {}, liked: {}, reported: {}, quiz: {}, days: [] });
     save(); closeSheet(); rebuildFeed();
@@ -547,6 +624,46 @@ function exportFeedback() {
   a.download = `cs-reels-feedback-${today()}.json`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+/* ---------------- notifications (Android app only) ---------------- */
+const LN = NATIVE ? window.Capacitor?.Plugins?.LocalNotifications : null;
+const MORNING_HOUR = 8, EVENING_HOUR = 21;
+
+async function scheduleNotifications() {
+  if (!LN) return;
+  try {
+    const pending = await LN.getPending();
+    if (pending.notifications?.length) await LN.cancel({ notifications: pending.notifications.map(n => ({ id: n.id })) });
+    if (S.notify === false) return;
+    let perm = await LN.checkPermissions();
+    if (perm.display !== 'granted') perm = await LN.requestPermissions();
+    if (perm.display !== 'granted') return;
+    const now = new Date();
+    const watchedToday = S.days.includes(today());
+    const st = streak();
+    const unseen = clips.filter(c => !S.seen[c.id] && !S.reported[c.id]).length;
+    const topics = Object.values(TOPICS).map(t => t.name);
+    const list = [];
+    for (let d = 0; d < 7; d++) {
+      const m = new Date(now); m.setDate(now.getDate() + d); m.setHours(MORNING_HOUR, 0, 0, 0);
+      if (m > now) list.push({
+        id: 100 + d, title: 'Fresh CS reels are in ☕',
+        body: `${unseen}+ clips waiting. Today: ${topics[(m.getDate()) % topics.length]} and more.`,
+        schedule: { at: m, allowWhileIdle: true },
+      });
+      const ev = new Date(now); ev.setDate(now.getDate() + d); ev.setHours(EVENING_HOUR, 0, 0, 0);
+      if (ev <= now || (d === 0 && watchedToday)) continue;
+      const keepStreak = (d === 0 || (d === 1 && watchedToday)) && st > 0;
+      list.push({
+        id: 200 + d,
+        title: keepStreak ? `Keep your ${st}-day streak 🔥` : '5 minutes of CS before bed?',
+        body: keepStreak ? 'One reel keeps it alive.' : 'A few deep-dive clips are waiting for you.',
+        schedule: { at: ev, allowWhileIdle: true },
+      });
+    }
+    if (list.length) await LN.schedule({ notifications: list });
+  } catch (e) { console.warn('notifications', e); }
 }
 
 /* ---------------- misc ---------------- */
@@ -578,10 +695,16 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
   btn.disabled = false;
   queue = buildQueue();
   renderChips();
-  btn.addEventListener('click', () => {
-    soundOn = true; // this click is the user gesture that allows sound
+  const start = () => {
+    soundOn = true; // in the browser this click is the gesture that allows sound
     $('#splash').hidden = true;
     renderMore(6);
     feed.focus();
-  });
+  };
+  if (NATIVE) {
+    start();
+    scheduleNotifications();
+  } else {
+    btn.addEventListener('click', start);
+  }
 })();

@@ -99,6 +99,23 @@ def yt_search(query, n, short_only=False):
     return out
 
 
+def channel_search(handle, query, n):
+    """Search inside one channel. Returns (channel_name, videos)."""
+    from urllib.parse import quote_plus
+    url = f"https://www.youtube.com/@{handle}/search?query={quote_plus(query)}"
+    cmd = [YTDLP, "--flat-playlist", "-J", "--no-warnings", "-I", f"1:{n}", url]
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=90)
+        d = json.loads(r.stdout)
+    except Exception:
+        return handle, []
+    name = d.get("channel") or d.get("uploader") or handle
+    vids = [{"id": e["id"], "title": e.get("title") or "", "duration": int(e.get("duration") or 0),
+             "channel": name, "is_short": "/shorts/" in (e.get("url") or "")}
+            for e in (d.get("entries") or []) if e and e.get("id")]
+    return name, vids
+
+
 def yt_meta(video_id):
     cmd = [YTDLP, "-J", "--skip-download", "--no-warnings",
            f"https://www.youtube.com/watch?v={video_id}"]
@@ -150,11 +167,15 @@ def transcript_blocks(snips, block_sec=8):
 
 # ---------------------------------------------------------------- Claude
 
-SYSTEM_PROMPT = """You are a strict curator for a short-video learning app for computer science students (core CS: DBMS, computer networks, computer architecture, C++, AI/ML).
-You read YouTube transcripts and turn them into reels: short, self-contained clips that each teach exactly one concept.
-You are picky. A clip must make sense to someone who did not watch the rest of the video. Never include intros, outros, greetings, "like and subscribe", sponsor segments, course promotions, or "as we saw in the last video" set-up.
-Score honestly on 1-10 scales. If the content is technically wrong, give accuracy <= 4. Transcripts may be Hinglish or auto-generated; judge the teaching, not the caption quality, but write all titles/summaries/quiz text in clear English.
+SYSTEM_PROMPT_TMPL = """You are a strict curator for a short-video learning app on core computer science (DBMS, computer networks, computer architecture, C++, AI/ML).
+The viewer is {audience}.
+You read YouTube transcripts and turn them into reels: short, self-contained clips that each teach exactly one idea in depth.
+You are picky. Prefer segments with real substance: how something works internally, why it is designed that way, trade-offs, worked examples, math, edge cases, performance implications. Skip slow beginner recaps, definitions everyone knows, motivational talk, admin/logistics, Q&A chatter, intros/outros, sponsor segments and "as we saw last time" set-up.
+A clip must make sense to someone who did not watch the rest of the video.
+Score honestly on 1-10 scales. accuracy: technically correct. standalone: understandable alone. clarity: well explained. depth: how much a strong student learns (1 = beginner overview, 10 = rigorous expert insight). Wrong content gets accuracy <= 4.
+Write titles/summaries/quiz questions that are precise and technical, not clickbait. Quiz questions should test understanding, not recall of trivia.
 Return only data that matches the JSON schema."""
+SYSTEM_PROMPT = ""  # filled in main() from config["audience"]
 
 QUIZ_SCHEMA = {
     "type": ["object", "null"],
@@ -175,7 +196,18 @@ CLIP_PROPS = {
     "accuracy": {"type": "integer", "minimum": 1, "maximum": 10},
     "standalone": {"type": "integer", "minimum": 1, "maximum": 10},
     "clarity": {"type": "integer", "minimum": 1, "maximum": 10},
+    "depth": {"type": "integer", "minimum": 1, "maximum": 10},
     "quiz": QUIZ_SCHEMA,
+}
+
+PICK_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "choices": {"type": "array", "items": {"type": "integer"},
+                    "description": "candidate numbers, best first; empty if none fit"},
+        "reason": {"type": "string"},
+    },
+    "required": ["choices", "reason"],
 }
 
 LECTURE_SCHEMA = {
@@ -232,8 +264,8 @@ Chapters:
 
 Cut this lecture into reels.
 Rules:
-- 0 to 12 clips. Only the genuinely useful parts. Zero is fine if the video is bad.
-- Each clip 45-120 seconds (hard limits 30-150), teaching ONE concept, understandable on its own.
+- 0 to 14 clips. Only the genuinely insightful parts. Zero is fine if the video is shallow or bad.
+- Each clip 60-180 seconds (hard limits 30-240), teaching ONE idea in depth, understandable on its own.
 - start = the [seconds] timestamp of the block where the explanation begins (a sentence start, not mid-thought).
 - end = the timestamp of the first block AFTER the explanation finishes.
 - Clips must not overlap. Keep them in video order.
@@ -250,7 +282,7 @@ def short_prompt(video, meta, topic, subtopic, blocks):
 YouTube Short: "{video['title']}" by {video['channel']} ({meta['duration']}s)
 Description: {meta['description'][:600]}
 
-Judge whether this Short actually teaches a core CS concept (educational = false for memes, motivation, career talk, "POV", setups, hype, course ads).
+Judge whether this Short actually teaches a core CS concept with substance (educational = false for memes, motivation, career talk, "POV", setups, hype, news, course ads, or trivially shallow content).
 Score it and write title/hook/concept/summary. Add a quiz if it teaches something testable, else null.
 
 Transcript ([seconds] text):
@@ -260,11 +292,15 @@ Transcript ([seconds] text):
 
 # ---------------------------------------------------------------- selection
 
+def trusted_names(state):
+    return {n.lower() for n in state.get("channel_names", {}).values()}
+
+
 def is_trusted(channel, cfg, state):
     c = channel.strip().lower()
-    if c in {b.lower() for b in state.get("blocked_channels", [])}:
+    if blocked(channel, state):
         return False
-    return c in {t.lower() for t in cfg["trusted_channels"]}
+    return c in trusted_names(state)
 
 
 def blocked(channel, state):
@@ -272,15 +308,32 @@ def blocked(channel, state):
 
 
 def pick_lecture(topic, subtopic, cfg, state):
+    """Search each of the topic's channels, then let Claude pick the most rigorous fit."""
     d = cfg["daily"]
-    q = f"{subtopic} {topic['query']}"
-    results = yt_search(q, d["search_results"])
-    cands = [v for v in results
-             if v["id"] not in state["processed"]
-             and not v["is_short"]
-             and d["lecture_min_sec"] <= v["duration"] <= d["lecture_max_sec"]
-             and is_trusted(v["channel"], cfg, state)]
-    for v in cands[:4]:
+    names = state.setdefault("channel_names", {})
+    cands = []
+    with cf.ThreadPoolExecutor(6) as ex:
+        futs = {ex.submit(channel_search, h, subtopic, d["channel_search_results"]): h for h in topic["channels"]}
+        for f in cf.as_completed(futs):
+            name, vids = f.result()
+            names[futs[f]] = name
+            if blocked(name, state):
+                continue
+            cands += [v for v in vids
+                      if v["id"] not in state["processed"] and not v["is_short"]
+                      and d["lecture_min_sec"] <= v["duration"] <= d["lecture_max_sec"]]
+    if not cands:
+        return None, None
+    listing = "\n".join(f"{i}. \"{v['title']}\" by {v['channel']} ({v['duration'] // 60} min)"
+                        for i, v in enumerate(cands))
+    prompt = (f"Subtopic to teach: {subtopic} ({topic['name']})\n\nCandidate videos:\n{listing}\n\n"
+              "Rank up to 3 candidates that teach this subtopic most rigorously and in depth for the viewer. "
+              "Prefer university lectures and expert deep-dives that are squarely on this subtopic. "
+              "Exclude off-topic videos, talks about unrelated research, interviews, news and announcements.")
+    out, _ = claude_json(prompt, PICK_SCHEMA, cfg)
+    order = [i for i in (out or {}).get("choices", []) if 0 <= i < len(cands)]
+    for i in order:
+        v = cands[i]
         meta = yt_meta(v["id"])
         if meta and meta["embeddable"] and meta["public"] and meta["age_limit"] == 0:
             return v, meta
@@ -289,15 +342,14 @@ def pick_lecture(topic, subtopic, cfg, state):
 
 
 def pick_shorts(topic, subtopic, cfg, state, limit):
+    """Shorts are accepted only from the trusted channels."""
     d = cfg["daily"]
     q = f"{subtopic} {topic['query']}"
     results = yt_search(q, d["search_results"], short_only=True)
     cands = [v for v in results
              if v["id"] not in state["processed"]
              and 0 < v["duration"] <= d["short_max_sec"]
-             and not blocked(v["channel"], state)]
-    # trusted channels first, then the rest
-    cands.sort(key=lambda v: 0 if is_trusted(v["channel"], cfg, state) else 1)
+             and is_trusted(v["channel"], cfg, state)]
     out = []
     for v in cands:
         if len(out) >= limit * 2:  # fetch extra; many will be rejected
@@ -312,12 +364,11 @@ def pick_shorts(topic, subtopic, cfg, state, limit):
 
 # ---------------------------------------------------------------- processing
 
-def passes(c, cfg, trusted=True):
+def passes(c, cfg):
     q = cfg["quality"]
-    s = [c["accuracy"], c["standalone"], c["clarity"]]
-    avg = sum(s) / 3
-    need = q["min_avg_score"] if trusted else q["min_avg_score_untrusted_short"]
-    return min(s) >= q["min_each_score"] and avg >= need
+    s = [c["accuracy"], c["standalone"], c["clarity"], c.get("depth", 0)]
+    return (min(s[:3]) >= q["min_each_score"] and sum(s) / 4 >= q["min_avg_score"]
+            and s[3] >= q["min_depth"])
 
 
 def clean_quiz(qz):
@@ -349,7 +400,8 @@ def make_clip(video, meta, topic_key, subtopic, c, start, end, kind, seq):
         "summary": c["summary"].strip(),
         "channel": video["channel"],
         "videoTitle": video["title"],
-        "scores": {"accuracy": c["accuracy"], "standalone": c["standalone"], "clarity": c["clarity"]},
+        "scores": {"accuracy": c["accuracy"], "standalone": c["standalone"], "clarity": c["clarity"],
+                   "depth": c.get("depth", 0)},
         "quiz": clean_quiz(c.get("quiz")),
         "added": TODAY,
         "seq": seq,
@@ -369,7 +421,7 @@ def process_lecture(job, cfg):
     dur = meta["duration"] or video["duration"]
     for i, c in enumerate(sorted(out.get("clips", []), key=lambda c: c["start"])):
         start, end = max(0, int(c["start"])), min(int(c["end"]), dur)
-        if end - start < 30 or end - start > 150 or start < last_end:
+        if end - start < 30 or end - start > 240 or start < last_end:
             continue
         if not passes(c, cfg):
             continue
@@ -388,8 +440,7 @@ def process_short(job, cfg, state):
     if not out or not out.get("educational"):
         log(f"  short '{video['title'][:50]}': rejected (not educational)")
         return [], cost
-    trusted = is_trusted(video["channel"], cfg, state)
-    if not passes(out, cfg, trusted):
+    if not passes(out, cfg):
         log(f"  short '{video['title'][:50]}': rejected (scores)")
         return [], cost
     dur = meta["duration"] or video["duration"]
@@ -498,7 +549,9 @@ def main():
     ap.add_argument("--shorts", type=int)
     args = ap.parse_args()
 
+    global SYSTEM_PROMPT
     cfg = load_json(CONFIG_PATH, None)
+    SYSTEM_PROMPT = SYSTEM_PROMPT_TMPL.format(audience=cfg["audience"])
     state = load_json(STATE_PATH, {})
     state.setdefault("pointer", {})
     state.setdefault("rotation", 0)

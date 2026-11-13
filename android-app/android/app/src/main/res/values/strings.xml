@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">CS Reels</string>
+    <string name="title_activity_main">CS Reels</string>
+    <string name="package_name">dev.nischal.csreels</string>
+    <string name="custom_url_scheme">dev.nischal.csreels</string>
+</resources>

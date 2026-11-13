@@ -1,0 +1,19 @@
+{
+  "appId": "dev.nischal.csreels",
+  "appName": "CS Reels",
+  "webDir": "www",
+  "server": {
+    "url": "https://nischalpendurthi.github.io/cs-reels/",
+    "errorPath": "offline.html",
+    "cleartext": false
+  },
+  "android": {
+    "backgroundColor": "#000000"
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_reels",
+      "iconColor": "#a78bfa"
+    }
+  }
+}

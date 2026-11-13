@@ -32,11 +32,24 @@ systemd/    daily timer
 1. Each topic has an ordered `syllabus` in `config.json`. Every run advances along it,
    rotating topics, and wraps around when it reaches the end. Later passes pick *different* videos,
    because already-processed videos are skipped.
-2. Lectures come only from `trusted_channels`. Shorts can come from anywhere but must score higher
-   (`min_avg_score_untrusted_short`).
+2. Lectures are found by searching inside each topic's `channels`; Claude picks the most rigorous match. Shorts must also come from those channels
+   (and only from the trusted channels).
 3. Claude cuts each lecture into 30–150s self-contained clips, scores accuracy, standalone
    value and clarity (1–10), and writes quiz questions. Clips below the quality bar are dropped.
 4. App feedback (exported JSON in `pipeline/feedback/`) removes reported clips; a channel with 3+
    reports is blocked.
 
 Tune volume in `config.json → daily` (6 lectures + 5 Shorts searches comes to roughly 30–40 clips/day).
+
+## Android app
+
+`android-app/` is a Capacitor wrapper that loads https://nischalpendurthi.github.io/cs-reels/,
+so app and clip updates arrive without reinstalling. Native extras: sound plays without a tap,
+portrait lock, and local notifications (08:00 "new clips", 21:00 streak nudge if you haven't watched yet).
+
+Rebuild the APK (only needed when native code, the icon or `capacitor.config.json` changes):
+
+```
+cd ~/cs-reels/android-app && npx cap sync android && cd android && ANDROID_HOME=~/Android/Sdk ./gradlew assembleDebug
+# → android-app/android/app/build/outputs/apk/debug/app-debug.apk
+```
