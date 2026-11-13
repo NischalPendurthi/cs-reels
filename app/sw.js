@@ -1,5 +1,5 @@
 // App shell: cache-first. Clip data: network-first (falls back to cache offline).
-const SHELL = 'csreels-shell-v2';
+const SHELL = 'csreels-shell-v3';
 const DATA = 'csreels-data';
 const SHELL_FILES = ['./', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon.svg'];
 

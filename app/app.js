@@ -339,16 +339,25 @@ function load(item) {
   tick = setInterval(onTick, 250);
 }
 
-// If the browser refuses to play with sound (no tap yet), play muted and offer a sound button.
+// Nothing playing after 2s? Either the browser blocked sound (no tap yet) or YouTube is
+// showing an ad (the API reports "unstarted" during ads). Never leave a frozen thumbnail
+// over audio: reveal the player. In the browser, also fall back to muted + a sound button.
+// The Android app always allows sound, so it never mutes.
 function armAutoplayCheck() {
   clearTimeout(autoplayCheck);
   const item = playerItem;
   autoplayCheck = setTimeout(() => {
-    if (playerItem !== item || started || !player) return;
-    soundOn = false;
-    player.mute();
-    player.playVideo();
-    $('#soundPill').hidden = false;
+    if (playerItem !== item || started || !player || !current) return;
+    if (!NATIVE) {
+      soundOn = false;
+      player.mute();
+      player.playVideo();
+      $('#soundPill').hidden = false;
+    }
+    started = true;
+    $('.thumb', current).style.opacity = 0;
+    placeLayer();
+    showLayer(!scrolling);
   }, 2000);
 }
 
@@ -360,6 +369,7 @@ function onState(e) {
     const vid = player.getVideoData?.().video_id;
     if (vid && vid !== c.videoId) return;
     started = true;
+    if (soundOn && player.isMuted()) player.unMute();
     $('.thumb', current).style.opacity = 0;
     current.classList.remove('is-paused');
     placeLayer();
