@@ -64,7 +64,37 @@
   "NhpzBldHOYo": "2026-11-14",
   "HLBoEFQkE8U": "2026-11-14",
   "hxGOiiR9ZKg": "2026-11-14",
-  "gXbThCXjZFM": "2026-11-14"
+  "gXbThCXjZFM": "2026-11-14",
+  "4IxirOdp6bw": "2026-11-14",
+  "toS0RXNaTaE": "2026-11-14",
+  "R-mD-otyJ7E": "2026-11-14",
+  "C3B5IIlt4-0": "2026-11-14",
+  "nbBvuuNVfco": "2026-11-14",
+  "qdR2z_Ws56k": "2026-11-14",
+  "YAjfUc7Tt24": "2026-11-14",
+  "riJC3sAekpY": "2026-11-14",
+  "hS7kPtVB1vI": "2026-11-14",
+  "HMOI_lkzW08": "2026-11-14",
+  "qKNb8YQYTZg": "2026-11-14",
+  "j4-r0e7DjqY": "2026-11-14",
+  "HMzWBSySJHo": "2026-11-14",
+  "wmDRBsTFfyc": "2026-11-14",
+  "oRvgq966yZg": "2026-11-14",
+  "VQf0V6Wwbf4": "2026-11-14",
+  "aqWTNk90zRA": "2026-11-14",
+  "8yxrT1isnpE": "2026-11-14",
+  "151jdcYTI3M": "2026-11-14",
+  "uJryes5Vk1o": "2026-11-14",
+  "nNrgRVIzeHg": "2026-11-14",
+  "MAZi6VoekYw": "2026-11-14",
+  "7n5VY1k8a4o": "2026-11-14",
+  "ZXx7C1D6CNo": "2026-11-14",
+  "vMh0zPT0tLI": "2026-11-14",
+  "jcl0unn73RY": "2026-11-14",
+  "PyLlYQXuxvs": "2026-11-14",
+  "vSbux6GhOW8": "2026-11-14",
+  "CiHfz6pTolQ": "2026-11-14",
+  "4qJaSmvhxi8": "2026-11-14"
  },
  "runs": [
   {
@@ -108,6 +138,20 @@
     "cpp": 4
    },
    "cost_usd": 0.9394
+  },
+  {
+   "date": "2026-11-14",
+   "clips": 57,
+   "lectures": 30,
+   "shorts": 0,
+   "byTopic": {
+    "dbms": 13,
+    "coa": 18,
+    "cpp": 14,
+    "cn": 7,
+    "aiml": 5
+   },
+   "cost_usd": 0.777
   }
  ],
  "channel_names": {
