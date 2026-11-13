@@ -365,9 +365,14 @@ def pick_shorts(topic, subtopic, cfg, state, limit):
 
 # ---------------------------------------------------------------- processing
 
-def passes(c, cfg):
+def passes(c, cfg, src="search"):
     q = cfg["quality"]
     s = [c["accuracy"], c["standalone"], c["clarity"], c.get("depth", 0)]
+    if src.startswith("prephub"):
+        # Prep Hub picks are already vetted: allow fundamentals (lower depth), but
+        # accuracy / standalone / clarity must still be good.
+        return (min(s[:3]) >= q["min_each_score"] and sum(s[:3]) / 3 >= q["min_avg_score"]
+                and s[3] >= q.get("prephub_min_depth", q["min_depth"]))
     return (min(s[:3]) >= q["min_each_score"] and sum(s) / 4 >= q["min_avg_score"]
             and s[3] >= q["min_depth"])
 
@@ -427,7 +432,7 @@ def process_lecture(job, cfg):
         start, end = max(0, int(c["start"])), min(int(c["end"]), dur)
         if end - start < 30 or end - start > 240 or start < last_end:
             continue
-        if not passes(c, cfg):
+        if not passes(c, cfg, video.get("src", "search")):
             continue
         last_end = end
         clips.append(make_clip(video, meta, topic_key, subtopic, c, start, end, "lecture", i))
@@ -447,7 +452,7 @@ def process_short(job, cfg, state):
     if not out or not out.get("educational"):
         log(f"  short '{video['title'][:50]}': rejected (not educational)")
         return [], cost
-    if not passes(out, cfg):
+    if not passes(out, cfg, video.get("src", "search")):
         log(f"  short '{video['title'][:50]}': rejected (scores)")
         return [], cost
     dur = meta["duration"] or video["duration"]

@@ -20,7 +20,8 @@
   "quality": {
     "min_each_score": 6,
     "min_avg_score": 7,
-    "min_depth": 6
+    "min_depth": 6,
+    "prephub_min_depth": 4
   },
   "llm": {
     "model": "sonnet",
