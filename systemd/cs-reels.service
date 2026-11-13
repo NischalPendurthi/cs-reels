@@ -1,0 +1,10 @@
+[Unit]
+Description=CS Reels daily clip pipeline
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/cs-reels/pipeline/run-daily.sh
+TimeoutStartSec=1800
+Nice=10

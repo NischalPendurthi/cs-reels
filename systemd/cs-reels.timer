@@ -1,0 +1,10 @@
+[Unit]
+Description=Run CS Reels pipeline every morning
+
+[Timer]
+OnCalendar=*-*-* 06:30
+Persistent=true
+RandomizedDelaySec=10min
+
+[Install]
+WantedBy=timers.target

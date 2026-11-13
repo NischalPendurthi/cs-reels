@@ -1,0 +1,66 @@
+{
+ "pointer": {
+  "dbms": 2,
+  "cn": 1,
+  "coa": 1,
+  "cpp": 1,
+  "aiml": 1
+ },
+ "rotation": 1,
+ "processed": {
+  "ZtVw2iuFI2w": "2026-11-14",
+  "0y6FtKsg6J4": "2026-11-14",
+  "j8NnE1YeSN0": "2026-11-14",
+  "qYEjR6M0wSk": "2026-11-14",
+  "fM8XdC1EweU": "2026-11-14",
+  "wOD02sezmX8": "2026-11-14",
+  "8L-PKidIH-U": "2026-11-14",
+  "0H8bKKFtpeY": "2026-11-14",
+  "SbK2fY4l6N8": "2026-11-14",
+  "HBVcL7sJsjw": "2026-11-14",
+  "W4dbINu5n9w": "2026-11-14",
+  "913YH3NVBrA": "2026-11-14",
+  "ORR3tAAz4F4": "2026-11-14",
+  "2R6Oe-La4WY": "2026-11-14",
+  "AgLoDdT8nN8": "2026-11-14",
+  "7HKQgsSVw8I": "2026-11-14",
+  "PvcOSD-vXz8": "2026-11-14",
+  "EupCa588FlU": "2026-11-14",
+  "g2dWolyRRe8": "2026-11-14",
+  "uH_A3Gi2YbY": "2026-11-14",
+  "Adm5qilyONA": "2026-11-14",
+  "7je3P-hcBy8": "2026-11-14",
+  "JAH2WtmXBhI": "2026-11-14",
+  "UdRBWtReyA0": "2026-11-14",
+  "5BpgAHBZgec": "2026-11-14",
+  "mG8uUEyM2Go": "2026-11-14",
+  "zyZ5qB0mgOg": "2026-11-14",
+  "FX569xTjf9M": "2026-11-14",
+  "AUelDmVNon0": "2026-11-14",
+  "Pszhrdl9WAM": "2026-11-14",
+  "hGYb5vWdCjA": "2026-11-14",
+  "mLFzvzuA5LM": "2026-11-14",
+  "rHeaoaiBM6Y": "2026-11-14",
+  "nvh53Svid3M": "2026-11-14",
+  "ZAQjNoV9MiQ": "2026-11-14",
+  "585_st-5rAc": "2026-11-14",
+  "g9mK8BofDFY": "2026-11-14"
+ },
+ "runs": [
+  {
+   "date": "2026-11-14",
+   "clips": 33,
+   "lectures": 6,
+   "shorts": 30,
+   "byTopic": {
+    "cn": 6,
+    "coa": 3,
+    "dbms": 12,
+    "aiml": 8,
+    "cpp": 4
+   },
+   "cost_usd": 0.711
+  }
+ ],
+ "last_run": "2026-11-14"
+}

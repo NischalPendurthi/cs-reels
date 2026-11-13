@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>CS Reels</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <nav class="chips" id="chips" aria-label="Topics"></nav>
+    <button class="icon-btn" id="statsBtn" aria-label="Your progress">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+  </header>
+
+  <main id="feed" class="feed" tabindex="0" aria-label="Reels"></main>
+
+  <div id="splash" class="splash">
+    <div class="splash-inner">
+      <div class="logo">&lt;/&gt;</div>
+      <h1>CS Reels</h1>
+      <p id="splashInfo">Loading clips…</p>
+      <button id="startBtn" class="primary" disabled>Start learning</button>
+      <p class="hint">Swipe up for next · tap to pause · double-tap to like</p>
+    </div>
+  </div>
+
+  <div id="soundPill" class="sound-pill" hidden>🔇 Tap for sound</div>
+
+  <section id="sheet" class="sheet" hidden aria-label="Progress">
+    <div class="sheet-card">
+      <div class="sheet-head">
+        <h2>Your progress</h2>
+        <button class="icon-btn" id="sheetClose" aria-label="Close">✕</button>
+      </div>
+      <div id="sheetBody"></div>
+    </div>
+  </section>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="app.js"></script>
+  <script src="https://www.youtube.com/iframe_api"></script>
+</body>
+</html>

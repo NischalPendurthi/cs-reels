@@ -1,0 +1,161 @@
+{
+  "daily": {
+    "lectures_per_day": 6,
+    "shorts_queries_per_day": 5,
+    "max_shorts_per_query": 3,
+    "lecture_min_sec": 240,
+    "lecture_max_sec": 5400,
+    "short_max_sec": 180,
+    "search_results": 20,
+    "parallel_llm_calls": 3
+  },
+  "quality": {
+    "min_each_score": 6,
+    "min_avg_score": 7,
+    "min_avg_score_untrusted_short": 8
+  },
+  "llm": {
+    "model": "sonnet",
+    "timeout_sec": 300
+  },
+  "transcript_languages": ["en", "en-IN", "en-GB", "en-US", "hi"],
+  "topics": {
+    "dbms": {
+      "name": "DBMS",
+      "query": "DBMS",
+      "syllabus": [
+        "what is a DBMS vs file system",
+        "ER model entities attributes relationships",
+        "relational model keys super key candidate key primary key",
+        "relational algebra",
+        "SQL joins",
+        "SQL group by having aggregate",
+        "functional dependencies",
+        "normalization 1NF 2NF 3NF",
+        "BCNF",
+        "transactions ACID properties",
+        "serializability conflict serializable schedule",
+        "concurrency control two phase locking",
+        "deadlock in DBMS",
+        "recovery log based recovery",
+        "indexing B tree B+ tree",
+        "hashing in DBMS",
+        "query processing and optimization",
+        "NoSQL vs SQL",
+        "database sharding and replication"
+      ]
+    },
+    "cn": {
+      "name": "Computer Networks",
+      "query": "computer networks",
+      "syllabus": [
+        "OSI model layers",
+        "TCP/IP model",
+        "IP addressing and subnetting",
+        "CIDR",
+        "MAC address and ARP",
+        "switching vs routing",
+        "routing algorithms distance vector link state",
+        "TCP three way handshake",
+        "TCP flow control sliding window",
+        "TCP congestion control",
+        "UDP vs TCP",
+        "DNS how it works",
+        "HTTP and HTTPS",
+        "TLS handshake",
+        "NAT",
+        "DHCP",
+        "error detection CRC checksum",
+        "CSMA/CD and Ethernet",
+        "how the internet works packets"
+      ]
+    },
+    "coa": {
+      "name": "Computer Architecture",
+      "query": "computer architecture",
+      "syllabus": [
+        "von Neumann architecture",
+        "how a CPU executes instructions fetch decode execute",
+        "instruction set architecture RISC vs CISC",
+        "addressing modes",
+        "ALU and registers",
+        "number representation two's complement floating point",
+        "instruction pipelining",
+        "pipeline hazards",
+        "memory hierarchy",
+        "cache memory mapping",
+        "cache hit miss and replacement",
+        "virtual memory and paging",
+        "TLB",
+        "interrupts and DMA",
+        "branch prediction",
+        "multicore and parallelism",
+        "how transistors make logic gates"
+      ]
+    },
+    "cpp": {
+      "name": "C++",
+      "query": "C++",
+      "syllabus": [
+        "pointers",
+        "references vs pointers",
+        "stack vs heap memory",
+        "classes and objects",
+        "constructors and destructors",
+        "copy constructor deep vs shallow copy",
+        "inheritance",
+        "virtual functions and polymorphism vtable",
+        "operator overloading",
+        "templates",
+        "STL vector",
+        "STL map unordered_map",
+        "iterators",
+        "smart pointers unique_ptr shared_ptr",
+        "move semantics rvalue references",
+        "RAII",
+        "lambdas",
+        "const correctness",
+        "undefined behavior"
+      ]
+    },
+    "aiml": {
+      "name": "AI & ML",
+      "query": "machine learning",
+      "syllabus": [
+        "what is machine learning supervised vs unsupervised",
+        "linear regression",
+        "gradient descent",
+        "logistic regression",
+        "bias variance tradeoff overfitting",
+        "regularization L1 L2",
+        "decision trees",
+        "random forest",
+        "support vector machine",
+        "k means clustering",
+        "PCA principal component analysis",
+        "neural networks basics",
+        "backpropagation",
+        "activation functions",
+        "convolutional neural networks",
+        "recurrent neural networks LSTM",
+        "attention and transformers",
+        "how large language models work",
+        "evaluation metrics precision recall"
+      ]
+    }
+  },
+  "trusted_channels": [
+    "Gate Smashers", "Neso Academy", "Jenny's Lectures CS IT", "Abdul Bari",
+    "KnowledgeGATE by Sanchit Sir", "Apna College", "CodeHelp - by Babbar",
+    "take U forward", "NPTEL-NOC IITM", "NPTEL IIT Bombay", "MIT OpenCourseWare",
+    "Stanford Online", "freeCodeCamp.org", "Computerphile", "ByteByteGo",
+    "CMU Database Group", "Decomplexify", "Hussein Nasser",
+    "Ben Eater", "PowerCert Animated Videos", "Practical Networking", "Sunny Classroom",
+    "Branch Education", "Core Dumped", "Onur Mutlu Lectures", "Low Level",
+    "The Cherno", "CodeBeauty", "CppNuts", "Mike Shah", "CppCon", "Bo Qian",
+    "StatQuest with Josh Starmer", "3Blue1Brown", "Andrej Karpathy", "Krish Naik",
+    "CampusX", "IBM Technology", "Welch Labs", "Serrano.Academy", "sentdex",
+    "Fireship", "NeetCode", "Abdul Bari", "Education 4u", "Sundeep Saradhi Kanthety",
+    "5 Minutes Engineering", "Tech With Tim", "Codebagel", "b001", "Mohammed Hussein"
+  ]
+}
