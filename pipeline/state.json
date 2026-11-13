@@ -1,12 +1,12 @@
 {
  "pointer": {
-  "dbms": 2,
-  "cn": 1,
-  "coa": 1,
-  "cpp": 1,
-  "aiml": 1
+  "dbms": 3,
+  "cn": 3,
+  "coa": 3,
+  "cpp": 3,
+  "aiml": 2
  },
- "rotation": 1,
+ "rotation": 4,
  "processed": {
   "RdZSrD4DUvs": "2026-11-14",
   "IZ_PnVXtMeY": "2026-11-14",
@@ -14,7 +14,17 @@
   "rqVWj0aVSxg": "2026-11-14",
   "4b4MUYve_U8": "2026-11-14",
   "PjeOmOz9jSY": "2026-11-14",
-  "YIdIaPopfpk": "2026-11-14"
+  "YIdIaPopfpk": "2026-11-14",
+  "z4XdfFscxSk": "2026-11-14",
+  "GYlNoAMBY6o": "2026-11-14",
+  "VAzfOxLNLl4": "2026-11-14",
+  "dyNGd06MWn4": "2026-11-14",
+  "bl2WgBLH0tI": "2026-11-14",
+  "IHZwWFHWa-w": "2026-11-14",
+  "guOyZBnSKXg": "2026-11-14",
+  "6lRcMh5Yphg": "2026-11-14",
+  "rRHaGtUMs_0": "2026-11-14",
+  "tH0Z2OvHAd8": "2026-11-14"
  },
  "runs": [
   {
@@ -30,6 +40,20 @@
     "dbms": 5
    },
    "cost_usd": 0.507
+  },
+  {
+   "date": "2026-11-14",
+   "clips": 22,
+   "lectures": 8,
+   "shorts": 0,
+   "byTopic": {
+    "aiml": 3,
+    "cn": 3,
+    "coa": 10,
+    "cpp": 5,
+    "dbms": 1
+   },
+   "cost_usd": 0.5295
   }
  ],
  "channel_names": {

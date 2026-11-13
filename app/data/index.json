@@ -1,18 +1,18 @@
 {
- "updated": "2026-11-14T01:22:35",
- "total": 18,
+ "updated": "2026-11-14T01:28:41",
+ "total": 40,
  "byTopic": {
-  "aiml": 2,
-  "cn": 1,
-  "coa": 5,
-  "cpp": 5,
-  "dbms": 5
+  "aiml": 5,
+  "cn": 4,
+  "coa": 15,
+  "cpp": 10,
+  "dbms": 6
  },
  "days": [
   {
    "date": "2026-11-14",
    "file": "days/2026-11-14.json",
-   "count": 18
+   "count": 40
   }
  ]
 }
