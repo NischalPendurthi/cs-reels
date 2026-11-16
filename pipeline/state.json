@@ -2,11 +2,11 @@
  "pointer": {
   "dbms": 4,
   "cn": 4,
-  "coa": 3,
-  "cpp": 3,
-  "aiml": 3
+  "coa": 4,
+  "cpp": 4,
+  "aiml": 4
  },
- "rotation": 2,
+ "rotation": 0,
  "processed": {
   "RdZSrD4DUvs": "2026-11-14",
   "IZ_PnVXtMeY": "2026-11-14",
@@ -114,7 +114,26 @@
   "ILqZWvDWKEc": "2026-11-15",
   "BfKanl1aSG0": "2026-11-15",
   "dSxV5Sob5V8": "2026-11-15",
-  "CekW6ipRrGA": "2026-11-15"
+  "CekW6ipRrGA": "2026-11-15",
+  "jftR-zw8xWE": "2026-11-16",
+  "aamG4-tH_m8": "2026-11-16",
+  "UhJIYram3js": "2026-11-16",
+  "r223NMYQnLo": "2026-11-16",
+  "JXQT_vxqwIs": "2026-11-16",
+  "-htbah3eCYg": "2026-11-16",
+  "QPi5Nvxaosw": "2026-11-16",
+  "c0AgNybSf9A": "2026-11-16",
+  "ZPmKiVrgzXs": "2026-11-16",
+  "QzulmoOg2JE": "2026-11-16",
+  "5K7x946qvgA": "2026-11-16",
+  "x-rQ3RiI7I0": "2026-11-16",
+  "UbDIoNY9E0w": "2026-11-16",
+  "bvCEqS4S0sg": "2026-11-16",
+  "NE88eqLngkg": "2026-11-16",
+  "f522l7Q-t7g": "2026-11-16",
+  "9BM5LAvNtus": "2026-11-16",
+  "7AQYw5FOVcw": "2026-11-16",
+  "ZAW9EyNo2fw": "2026-11-16"
  },
  "runs": [
   {
@@ -184,6 +203,20 @@
     "coa": 3
    },
    "cost_usd": 0.0755
+  },
+  {
+   "date": "2026-11-16",
+   "clips": 45,
+   "lectures": 18,
+   "shorts": 0,
+   "byTopic": {
+    "dbms": 5,
+    "cn": 4,
+    "coa": 16,
+    "cpp": 10,
+    "aiml": 10
+   },
+   "cost_usd": 0.7134
   }
  ],
  "channel_names": {
@@ -219,5 +252,5 @@
   "YannicKilcher": "Yannic Kilcher",
   "SerranoAcademy": "Luis Serrano Academy"
  },
- "last_run": "2026-11-15"
+ "last_run": "2026-11-16"
 }
