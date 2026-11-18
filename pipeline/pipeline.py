@@ -146,6 +146,8 @@ def yt_meta(video_id):
         "description": (d.get("description") or "")[:1500],
         "chapters": [{"t": int(c["start_time"]), "title": c["title"]} for c in (d.get("chapters") or [])],
         "aspect": (d.get("width") or 16) / max(1, (d.get("height") or 9)),
+        "upload_date": d.get("upload_date") or "",
+        "channel": d.get("channel") or d.get("uploader") or "",
     }
 
 
@@ -348,6 +350,85 @@ def blocked(channel, state):
     return channel.strip().lower() in {b.lower() for b in state.get("blocked_channels", [])}
 
 
+# ---------------------------------------------------------------- source rules
+# 1. never a video that is on the Prep Hub site, 2. uploaded in the last N years,
+# 3. not by an Indian creator, 4. embeddable / public / not age-restricted.
+
+_prephub_ids = None
+
+
+def prephub_ids(cfg):
+    """Video ids used on the Prep Hub site (its Video Picks). These are excluded here."""
+    global _prephub_ids
+    if _prephub_ids is None:
+        _prephub_ids = set()
+        root = os.path.expanduser(cfg["exclude"]["prephub_videos_dir"])
+        for f in glob.glob(os.path.join(root, "content", "*.json")):
+            for s in (load_json(f, {}) or {}).get("subtopics", []):
+                _prephub_ids.update(p["id"] for p in s.get("picks", []) if p.get("id"))
+        data_js = os.path.join(root, "data.js")
+        if os.path.exists(data_js):
+            _prephub_ids.update(re.findall(r'"id": ?"([A-Za-z0-9_-]{11})"', open(data_js).read()))
+        if not _prephub_ids:
+            log("  warning: no Prep Hub video ids found in", root)
+    return _prephub_ids
+
+
+def min_upload_date(cfg):
+    d = dt.date.today()
+    years = cfg["exclude"]["max_age_years"]
+    try:
+        cut = d.replace(year=d.year - years)
+    except ValueError:  # Feb 29
+        cut = d.replace(year=d.year - years, day=28)
+    return cut.strftime("%Y%m%d")
+
+
+CREATOR_SCHEMA = {
+    "type": "object",
+    "properties": {"indian": {"type": "boolean"}, "reason": {"type": "string"}},
+    "required": ["indian", "reason"],
+}
+_creator_lock = threading.Lock()
+
+
+def creator_ok(channel, cfg, state):
+    """False for Indian creators (config list, else Claude's judgement, cached per channel)."""
+    name = channel.strip()
+    if not name:
+        return False
+    if name.lower() in {c.lower() for c in cfg["exclude"]["indian_creators"]}:
+        return False
+    with _creator_lock:
+        cache = state.setdefault("creator_indian", {})
+        if name in cache:
+            return not cache[name]
+    out, _ = claude_json(
+        f'YouTube channel: "{name}". Is this channel run by an Indian creator or an Indian '
+        "institution (e.g. IIT/NPTEL lecturers, Indian ed-tech or GATE prep channels, "
+        "Indian YouTubers)? Answer from what you know about the channel.", CREATOR_SCHEMA, cfg)
+    if out is None:
+        return False  # unknown: be safe, don't use it this run
+    with _creator_lock:
+        state["creator_indian"][name] = bool(out["indian"])
+    if out["indian"]:
+        log(f"  excluding Indian creator: {name}")
+    return not out["indian"]
+
+
+def video_ok(vid, meta, cfg, state, channel=""):
+    """Why a video can't be used, or None if it can."""
+    if vid in prephub_ids(cfg):
+        return "on Prep Hub site"
+    if not (meta["embeddable"] and meta["public"] and meta["age_limit"] == 0):
+        return "not embeddable"
+    if not meta["upload_date"] or meta["upload_date"] < min_upload_date(cfg):
+        return f"too old ({meta['upload_date'] or 'no date'})"
+    if not creator_ok(meta["channel"] or channel, cfg, state):
+        return "Indian creator"
+    return None
+
+
 def pick_lecture(topic, subtopic, cfg, state):
     """Search each of the topic's channels, then let Claude pick the most rigorous fit."""
     d = cfg["daily"]
@@ -361,7 +442,8 @@ def pick_lecture(topic, subtopic, cfg, state):
             if blocked(name, state):
                 continue
             cands += [v for v in vids
-                      if v["id"] not in state["processed"] and not v["is_short"]
+                      if v["id"] not in state["processed"] and v["id"] not in prephub_ids(cfg)
+                      and not v["is_short"]
                       and d["lecture_min_sec"] <= v["duration"] <= d["lecture_max_sec"]]
     if not cands:
         return None, None
@@ -370,36 +452,55 @@ def pick_lecture(topic, subtopic, cfg, state):
     prompt = (f"Syllabus item to teach: {subtopic} ({topic['name']})\n\nCandidate videos:\n{listing}\n\n"
               "Rank up to 3 candidates that teach this subtopic most rigorously and in depth for the viewer. "
               "Prefer university lectures and expert deep-dives that are squarely on this subtopic. "
-              "Exclude off-topic videos, talks about unrelated research, interviews, news and announcements.")
+              "Exclude off-topic videos, talks about unrelated research, interviews, news and announcements, "
+              "and videos by Indian creators.")
     out, _ = claude_json(prompt, PICK_SCHEMA, cfg)
     order = [i for i in (out or {}).get("choices", []) if 0 <= i < len(cands)]
     for i in order:
         v = cands[i]
         meta = yt_meta(v["id"])
-        if meta and meta["embeddable"] and meta["public"] and meta["age_limit"] == 0:
+        if not meta:
+            continue
+        why = video_ok(v["id"], meta, cfg, state, v["channel"])
+        if not why:
             return v, meta
-        state["processed"][v["id"]] = TODAY  # don't retry unembeddable
+        log(f"  skip '{v['title'][:50]}': {why}")
+        state["processed"][v["id"]] = TODAY  # don't look at it again
     return None, None
 
 
 def pick_shorts(topic, subtopic, cfg, state, limit):
-    """Shorts are accepted only from the trusted channels."""
+    """Shorts from the topic's trusted channels (searched inside each channel, plus a
+    YouTube Shorts search filtered to trusted channels)."""
     d = cfg["daily"]
+    results = []
+    with cf.ThreadPoolExecutor(6) as ex:
+        for name, vids in ex.map(lambda h: channel_search(h, subtopic, d["channel_search_results"] * 2),
+                                 topic["channels"]):
+            results += [v for v in vids if v["is_short"] or 0 < v["duration"] <= d["short_max_sec"]]
     q = f"{subtopic} {topic['query']}"
-    results = yt_search(q, d["search_results"], short_only=True)
-    cands = [v for v in results
-             if v["id"] not in state["processed"]
-             and 0 < v["duration"] <= d["short_max_sec"]
-             and is_trusted(v["channel"], cfg, state)]
+    results += [v for v in yt_search(q, d["search_results"], short_only=True)
+                if is_trusted(v["channel"], cfg, state)]
+    seen, cands = set(), []
+    for v in results:
+        if v["id"] in seen or v["id"] in state["processed"] or v["id"] in prephub_ids(cfg):
+            continue
+        seen.add(v["id"])
+        if blocked(v["channel"], state) or not (0 < v["duration"] <= d["short_max_sec"] or v["is_short"]):
+            continue
+        cands.append(v)
     out = []
     for v in cands:
         if len(out) >= limit * 2:  # fetch extra; many will be rejected
             break
         meta = yt_meta(v["id"])
-        if meta and meta["embeddable"] and meta["public"] and meta["age_limit"] == 0:
-            out.append((v, meta))
-        else:
+        if not meta:
+            continue
+        why = video_ok(v["id"], meta, cfg, state, v["channel"])
+        if why or meta["duration"] > d["short_max_sec"]:
             state["processed"][v["id"]] = TODAY
+            continue
+        out.append((v, meta))
     return out
 
 
@@ -413,11 +514,6 @@ def on_syllabus(c, topic):
 def passes(c, cfg, src="search"):
     q = cfg["quality"]
     s = [c["accuracy"], c["standalone"], c["clarity"], c.get("depth", 0)]
-    if src.startswith("prephub"):
-        # Prep Hub picks are already vetted: allow fundamentals (lower depth), but
-        # accuracy / standalone / clarity must still be good.
-        return (min(s[:3]) >= q["min_each_score"] and sum(s[:3]) / 3 >= q["min_avg_score"]
-                and s[3] >= q.get("prephub_min_depth", q["min_depth"]))
     return (min(s[:3]) >= q["min_each_score"] and sum(s) / 4 >= q["min_avg_score"]
             and s[3] >= q["min_depth"])
 
@@ -624,44 +720,6 @@ def git_publish(n_new):
     log("git push failed:", err)
 
 
-# ---------------------------------------------------------------- Prep Hub syllabus
-
-def prephub_queue(cfg, state, topic_keys):
-    """Unprocessed Prep Hub Video Picks in syllabus order, interleaved across topics.
-
-    Reads ~/Desktop/prep-hub/videos/content/<topic>.json (the curated picks: subtopics in
-    course order, videos in watching order). Returns [(cs_reels_topic, item), ...]."""
-    ph = cfg.get("prephub")
-    if not ph:
-        return []
-    root = os.path.expanduser(ph["content_dir"])
-    per = {}
-    for src, dst in ph["map"].items():
-        if dst not in topic_keys:
-            continue
-        d = load_json(os.path.join(root, f"{src}.json"), None)
-        if not d:
-            log(f"  prep-hub: {src}.json not found in {root}")
-            continue
-        for s in d.get("subtopics", []):
-            skip = ph.get("skip_subtopics", [])
-            if s.get("key") in skip or f"{src}/{s.get('key')}" in skip:
-                continue
-            for p in s.get("picks", []):
-                if p.get("kind") != "v" or p["id"] in state["processed"]:
-                    continue
-                per.setdefault(dst, []).append({
-                    "id": p["id"], "title": p.get("title", ""), "channel": p.get("channel", ""),
-                    "subtopic": s.get("name", ""), "src": f"prephub:{src}",
-                })
-    out = []
-    while any(per.values()):
-        for k in list(per):
-            if per[k]:
-                out.append((k, per[k].pop(0)))
-    return out
-
-
 # ---------------------------------------------------------------- main
 
 def main():
@@ -672,7 +730,6 @@ def main():
     ap.add_argument("--topics")
     ap.add_argument("--lectures", type=int)
     ap.add_argument("--shorts", type=int)
-    ap.add_argument("--prephub", type=int, help="Prep Hub videos to process this run")
     args = ap.parse_args()
 
     global SYSTEM_PROMPT
@@ -723,13 +780,6 @@ def main():
         plan_shorts.append((k, sub))
     state["rotation"] = (rot + n_lect) % max(1, len(topic_keys))
 
-    n_ph = args.prephub if args.prephub is not None else cfg.get("prephub", {}).get("videos_per_day", 0)
-    plan_ph = prephub_queue(cfg, state, topic_keys)
-    ph_left = len(plan_ph)
-    plan_ph = plan_ph[:n_ph]
-
-    log(f"prep-hub: {len(plan_ph)} of {ph_left} remaining:",
-        "; ".join(f"{k}: {it['subtopic']}" for k, it in plan_ph[:12]) + (" ..." if len(plan_ph) > 12 else ""))
     log("lectures:", "; ".join(f"{k}: {s}" for k, s in plan_lect))
     log("shorts:  ", "; ".join(f"{k}: {s}" for k, s in plan_shorts))
     if args.plan:
@@ -738,21 +788,6 @@ def main():
     # Find videos (sequential: polite to YouTube).
     jobs_l, jobs_s = [], []
     order = {}  # videoId -> position, so the feed keeps syllabus order
-    for k, it in plan_ph:
-        meta = yt_meta(it["id"])
-        if not meta:
-            log(f"  prep-hub: no metadata (will retry next run): {it['title'][:60]}")
-            continue
-        state["processed"][it["id"]] = TODAY
-        if not (meta and meta["embeddable"] and meta["public"] and meta["age_limit"] == 0):
-            log(f"  prep-hub skip (not embeddable/available): {it['title'][:60]}")
-            continue
-        v = {"id": it["id"], "title": it["title"], "channel": it["channel"],
-             "duration": meta["duration"], "src": it["src"]}
-        order[v["id"]] = len(order)
-        job = (v, meta, k, cfg["topics"][k], it["subtopic"])
-        # very short videos are one reel as a whole; longer ones get cut into clips
-        (jobs_s if meta["duration"] <= 240 else jobs_l).append(job)
     for k, sub in plan_lect:
         topic = cfg["topics"][k]
         log(f"searching lecture: {k} / {sub}")

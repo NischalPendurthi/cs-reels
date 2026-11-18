@@ -9,7 +9,7 @@ app/        the installable web app (static: HTML/CSS/JS)
   data/     index.json + days/<date>.json  (written by the pipeline)
 pipeline/   daily clip pipeline
   syllabus.json the interview syllabus per topic (the only allowed material; `q` = search query)
-  config.json   topics, trusted channels, Prep Hub mapping, daily amounts, quality bar
+  config.json   topics, trusted channels, source exclusions, daily amounts, quality bar
   state.json    syllabus position per topic, processed videos, run history
   logs/         one log per day
   feedback/     drop exported feedback files from the app here
@@ -31,19 +31,20 @@ systemd/    daily timer
 
 ## How the pipeline picks content
 
-**Main source: the Prep Hub syllabus.** Each run takes the next `prephub.videos_per_day` unprocessed
-videos from `~/Desktop/prep-hub/videos/content/<topic>.json` (Video Picks), in subtopic and watching
-order, round-robin across topics, and cuts them into clips. `prephub.map` maps Prep Hub topics to CS Reels
-topics; `prephub.skip_subtopics` drops whole Prep Hub subtopics (`"oop/errors"`) that aren't on the syllabus.
-Process a bigger batch now with `run-daily.sh --force --prephub 40`.
+**Source rules** (`config.json → exclude`). A video is never used if it
+- is on the Prep Hub site (`~/Desktop/prep-hub/videos`: Video Picks and `data.js`),
+- was uploaded more than `max_age_years` (8) years ago,
+- is by an Indian creator (`indian_creators`, plus Claude's judgement per channel, cached in
+  `state.json → creator_indian`).
 
-**Extra variety: channel search**, as below:
+Content comes from searching the trusted channels, as below:
 
 1. Each topic has an ordered list of items in `syllabus.json`. Every run advances along it,
    rotating topics, and wraps around when it reaches the end. Later passes pick *different* videos,
    because already-processed videos are skipped.
 2. Lectures are found by searching inside each topic's `channels`; Claude picks the most rigorous
-   match for the `audience` described in the config. Shorts are accepted only from those channels.
+   match for the `audience` described in the config. Shorts (whole reels) come from the same channels:
+   searched inside each channel, plus a YouTube Shorts search filtered to those channels.
 3. Claude cuts each lecture into 30–240s self-contained clips, scores accuracy, standalone value,
    clarity and depth (1–10), names the syllabus item each clip teaches, and writes quiz questions.
    Off-syllabus clips and clips below the `quality` bar are dropped.

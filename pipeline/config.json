@@ -1,14 +1,8 @@
 {
   "audience": "a strong CS undergraduate at IIT Bombay who learns fast and wants rigorous, in-depth, university-level explanations (internals, mechanisms, trade-offs, math), not beginner-friendly overviews",
-  "prephub": {
-    "content_dir": "~/Desktop/prep-hub/videos/content",
-    "map": {"dbms": "dbms", "networks": "cn", "comp-arch": "coa", "oop": "cpp", "ml": "aiml", "llms": "aiml", "os": "os"},
-    "skip_subtopics": ["courses", "oop/errors", "oop/perf", "comp-arch/ooo", "comp-arch/prefetch", "comp-arch/dram", "comp-arch/security", "dbms/bigdata"],
-    "videos_per_day": 15
-  },
   "daily": {
-    "lectures_per_day": 3,
-    "shorts_queries_per_day": 2,
+    "lectures_per_day": 8,
+    "shorts_queries_per_day": 6,
     "max_shorts_per_query": 2,
     "lecture_min_sec": 300,
     "lecture_max_sec": 6000,
@@ -20,8 +14,7 @@
   "quality": {
     "min_each_score": 6,
     "min_avg_score": 7,
-    "min_depth": 6,
-    "prephub_min_depth": 4
+    "min_depth": 6
   },
   "llm": {
     "model": "sonnet",
@@ -37,7 +30,7 @@
     "os": {
       "name": "Operating Systems",
       "query": "operating systems",
-      "channels": ["CoreDumpped", "JacobSorber", "mitocw", "Computerphile", "nesoacademy"]
+      "channels": ["CoreDumpped", "JacobSorber", "LowLevelTV", "Computerphile", "mitocw", "BenEater"]
     },
     "cn": {
       "name": "Computer Networks",
@@ -59,6 +52,11 @@
       "query": "machine learning",
       "channels": ["stanfordonline", "AAmini", "3blue1brown", "statquest", "AndrejKarpathy", "umarjamilai", "Eigensteve", "Mutual_Information", "SerranoAcademy", "YannicKilcher"]
     }
+  },
+  "exclude": {
+    "prephub_videos_dir": "~/Desktop/prep-hub/videos",
+    "max_age_years": 8,
+    "indian_creators": ["Neso Academy", "Biswabandan (Biswa@IITB)", "Gate Smashers", "Jenny's Lectures CS IT", "Abdul Bari", "Apna College", "CodeWithHarry", "Kunal Kushwaha", "take U forward", "Love Babbar", "NPTEL-NOC IITM", "NPTEL IIT Bombay", "nptelhrd", "Ankit Bansal", "Arpit Bhayani", "Knowledge Gate", "Easy Engineering Classes", "Education 4u", "Sudhakar Atchala", "Krish Naik", "CampusX", "codebasics", "Hitesh Choudhary", "Chai aur Code", "Telusko", "Edureka", "Simplilearn", "Great Learning", "Unacademy Computer Science", "Ravindrababu Ravula", "Tutorials Point", "Tutorialspoint", "Gate CS Lectures by Ravindrababu Ravula", "Coding Ninjas", "GeeksforGeeks", "Scaler", "Kunal Khurana", "Shradha Khapra", "Aditya Verma", "Striver", "Anuj Bhaiya"]
   },
   "syllabus_file": "syllabus.json"
 }
