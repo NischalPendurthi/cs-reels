@@ -1,10 +1,13 @@
 {
  "pointer": {
-  "dbms": 1,
-  "coa": 1,
-  "aiml": 1
+  "dbms": 2,
+  "coa": 2,
+  "aiml": 2,
+  "cpp": 2,
+  "os": 2,
+  "cn": 1
  },
- "rotation": 0,
+ "rotation": 2,
  "processed": {
   "RdZSrD4DUvs": "2026-11-14",
   "IZ_PnVXtMeY": "2026-11-14",
@@ -132,7 +135,25 @@
   "M-1iTZWHXUY": "2026-11-18",
   "uKchSidT_Uo": "2026-11-18",
   "NHRoXvPaZqY": "2026-11-18",
-  "lG4VkPoG3ko": "2026-11-18"
+  "lG4VkPoG3ko": "2026-11-18",
+  "0zd8eznWv4k": "2026-11-18",
+  "O2tV9q6784k": "2026-11-18",
+  "7IS7gigunyI": "2026-11-18",
+  "8wUUMOKAK-c": "2026-11-18",
+  "1jOJl8gRPyQ": "2026-11-18",
+  "FvJTnPEGVWg": "2026-11-18",
+  "NXJwyPT1vsc": "2026-11-18",
+  "zeJD6dqJ5lo": "2026-11-18",
+  "_5SCtRNnf9U": "2026-11-18",
+  "qqIn_Svvnos": "2026-11-18",
+  "I9RzhlnEX0I": "2026-11-18",
+  "n-paFbO1hXE": "2026-11-18",
+  "OAx7Z99pFyQ": "2026-11-18",
+  "P80Js_qClUE": "2026-11-18",
+  "Tk2Zj5m3Ncs": "2026-11-18",
+  "A82brFpdr9g": "2026-11-18",
+  "Pny70rNPJLk": "2026-11-18",
+  "xIMlJUwB1m8": "2026-11-18"
  },
  "runs": [
   {
@@ -238,6 +259,19 @@
     "aiml": 6
    },
    "cost_usd": 0.6559
+  },
+  {
+   "date": "2026-11-18",
+   "clips": 16,
+   "lectures": 7,
+   "shorts": 8,
+   "byTopic": {
+    "os": 8,
+    "dbms": 3,
+    "coa": 1,
+    "aiml": 4
+   },
+   "cost_usd": 0.6594
   }
  ],
  "channel_names": {
@@ -273,5 +307,20 @@
   "YannicKilcher": "Yannic Kilcher",
   "SerranoAcademy": "Luis Serrano Academy"
  },
- "last_run": "2026-11-18"
+ "last_run": "2026-11-18",
+ "creator_indian": {
+  "CppCon": false,
+  "Yannic Kilcher": false,
+  "Onur Mutlu Lectures": false,
+  "3Blue1Brown": false,
+  "Steve Brunton": false,
+  "CMU Database Group": false,
+  "Hussein Nasser": false,
+  "Core Dumped": false,
+  "C++ Weekly With Jason Turner": false,
+  "Decomplexify": false,
+  "Jacob Sorber": false,
+  "Practical Networking": false,
+  "Chris Greer": false
+ }
 }
