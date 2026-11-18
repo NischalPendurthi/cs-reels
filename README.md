@@ -1,13 +1,15 @@
 # CS Reels
 
-A reels-style feed with only core CS topics: DBMS, Computer Networks, Computer Architecture, C++ and AI/ML.
+A reels-style feed for CS interview prep: C++, OS, Computer Networks, DBMS, Computer Architecture and AI/ML (incl. LLMs and agents).
+Everything follows the interview syllabus in `pipeline/syllabus.json`; clips that don't teach a syllabus item are dropped.
 Clips are cut from trusted lecture channels and filtered Shorts, scored by Claude, and published daily.
 
 ```
 app/        the installable web app (static: HTML/CSS/JS)
   data/     index.json + days/<date>.json  (written by the pipeline)
 pipeline/   daily clip pipeline
-  config.json   topics, syllabus order, trusted channels, daily amounts, quality bar
+  syllabus.json the interview syllabus per topic (the only allowed material; `q` = search query)
+  config.json   topics, trusted channels, Prep Hub mapping, daily amounts, quality bar
   state.json    syllabus position per topic, processed videos, run history
   logs/         one log per day
   feedback/     drop exported feedback files from the app here
@@ -32,18 +34,21 @@ systemd/    daily timer
 **Main source: the Prep Hub syllabus.** Each run takes the next `prephub.videos_per_day` unprocessed
 videos from `~/Desktop/prep-hub/videos/content/<topic>.json` (Video Picks), in subtopic and watching
 order, round-robin across topics, and cuts them into clips. `prephub.map` maps Prep Hub topics to CS Reels
-topics. Add `"os": "os"` there (plus an `os` entry under `topics`) to bring in another Prep Hub topic.
+topics; `prephub.skip_subtopics` drops whole Prep Hub subtopics (`"oop/errors"`) that aren't on the syllabus.
 Process a bigger batch now with `run-daily.sh --force --prephub 40`.
 
 **Extra variety: channel search**, as below:
 
-1. Each topic has an ordered `syllabus` in `config.json`. Every run advances along it,
+1. Each topic has an ordered list of items in `syllabus.json`. Every run advances along it,
    rotating topics, and wraps around when it reaches the end. Later passes pick *different* videos,
    because already-processed videos are skipped.
 2. Lectures are found by searching inside each topic's `channels`; Claude picks the most rigorous
    match for the `audience` described in the config. Shorts are accepted only from those channels.
 3. Claude cuts each lecture into 30–240s self-contained clips, scores accuracy, standalone value,
-   clarity and depth (1–10), and writes quiz questions. Clips below the `quality` bar are dropped.
+   clarity and depth (1–10), names the syllabus item each clip teaches, and writes quiz questions.
+   Off-syllabus clips and clips below the `quality` bar are dropped.
+   If YouTube rate-limits transcript requests (IpBlocked) or the network fails, the affected videos
+   are not marked processed and are retried on the next run.
 4. App feedback (exported JSON in `pipeline/feedback/`) removes reported clips; a channel with 3+
    reports is blocked.
 

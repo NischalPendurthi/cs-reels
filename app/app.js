@@ -8,6 +8,7 @@ const TOPICS = {
   cn: { name: 'Networks', color: 'var(--cn)' },
   coa: { name: 'Architecture', color: 'var(--coa)' },
   cpp: { name: 'C++', color: 'var(--cpp)' },
+  os: { name: 'OS', color: 'var(--os)' },
   aiml: { name: 'AI & ML', color: 'var(--aiml)' },
 };
 const STORE_KEY = 'csreels.v1';
@@ -54,19 +55,46 @@ async function loadData() {
 let queue = [];
 let rendered = 0;
 
-function orderUnseen(list, filter) {
-  // Keep each topic in syllabus/lecture order; interleave topics in runs of 3.
-  if (filter !== 'all') return list;
+function orderUnseen(list) {
+  // Interleave topics in runs of up to 3, keep each topic roughly in syllabus order,
+  // and never put two clips from the same video next to each other: within a topic,
+  // take the next clip from the earliest video that isn't the one just shown
+  // (so a lecture's clips alternate with the next video's instead of coming in a row).
+  // A video with more than half of the remaining clips is placed early, or it would
+  // pile up at the end with nothing left to separate its clips.
   const per = {};
-  list.forEach(c => (per[c.topic] = per[c.topic] || []).push(c));
+  list.forEach(c => {
+    const t = (per[c.topic] = per[c.topic] || []);
+    let v = t.find(v => v.id === c.videoId);
+    if (!v) t.push((v = { id: c.videoId, topic: c.topic, clips: [] }));
+    v.clips.push(c);
+  });
   const keys = Object.keys(per);
   const out = [];
-  let left = list.length;
-  while (left > 0) {
-    for (const k of keys) {
-      const q = per[k];
-      for (let i = 0; i < 3 && q.length; i++) { out.push(q.shift()); left--; }
+  let last = null, ti = 0, run = 0;
+  const take = v => {
+    const c = v.clips.shift();
+    if (!v.clips.length) per[v.topic].splice(per[v.topic].indexOf(v), 1);
+    out.push(c);
+    last = c.videoId;
+  };
+  while (out.length < list.length) {
+    const left = list.length - out.length;
+    const all = keys.flatMap(k => per[k]);
+    const big = all.reduce((a, v) => (v.clips.length > a.clips.length ? v : a));
+    if (big.id !== last && 2 * big.clips.length > left) {
+      if (big.topic !== keys[ti]) { ti = keys.indexOf(big.topic); run = 0; }
+      take(big); run++;
+      continue;
     }
+    // next eligible clip in topic order, runs of up to 3 per topic
+    let v = null;
+    for (let step = 0; step <= keys.length && !v; step++) {
+      if (step > 0 || run >= 3) { ti = (ti + 1) % keys.length; run = 0; }
+      v = per[keys[ti]].find(v => v.id !== last);
+    }
+    if (!v) v = all[0]; // only one video left: back-to-back clips are unavoidable
+    take(v); run++;
   }
   return out;
 }
@@ -75,23 +103,31 @@ function buildQueue() {
   const f = S.filter;
   const now = Date.now();
   const pool = clips.filter(c => !S.reported[c.id] && (f === 'all' || c.topic === f));
-  const unseen = orderUnseen(pool.filter(c => !S.seen[c.id]), f);
+  const unseen = orderUnseen(pool.filter(c => !S.seen[c.id]));
   const due = pool.filter(c => S.liked[c.id] && S.liked[c.id].due <= now && S.seen[c.id]);
 
   const items = [];
   const quizPool = [];
   let n = 0, di = 0;
-  for (const c of unseen) {
+  let revisionPending = false;
+  unseen.forEach((c, i) => {
     items.push({ type: 'reel', clip: c });
     if (c.quiz && !(c.id in S.quiz)) quizPool.push(c);
     n++;
-    if (n % REVISION_EVERY === 0 && di < due.length) items.push({ type: 'reel', clip: due[di++], revision: true });
+    if (n % REVISION_EVERY === 0) revisionPending = true;
+    // slot a revision reel in, but not next to a clip from the same video
+    const next = unseen[i + 1];
+    if (revisionPending && di < due.length && due[di].videoId !== c.videoId &&
+        (!next || due[di].videoId !== next.videoId)) {
+      items.push({ type: 'reel', clip: due[di++], revision: true });
+      revisionPending = false;
+    }
     if (n % QUIZ_EVERY === 0 && quizPool.length) {
       const pick = quizPool.splice(Math.floor(Math.random() * quizPool.length), 1)[0];
       items.push({ type: 'quiz', clip: pick });
       quizPool.length = 0; // only quiz on what you just watched
     }
-  }
+  });
   while (di < due.length) items.push({ type: 'reel', clip: due[di++], revision: true });
   items.push({ type: 'caughtup' });
   return items;
@@ -127,7 +163,7 @@ function reelHTML(item) {
       </div>
       <h3>${esc(c.title)}</h3>
       <p class="hook">${esc(c.hook)}</p>
-      <div class="meta">${esc(c.channel)} · ${fmt(c.end - c.start)}${c.src && c.src.startsWith('prephub') ? ` · ${esc(c.subtopic)}` : ''}</div>
+      <div class="meta">${esc(c.channel)} · ${fmt(c.end - c.start)}${c.syllabus ? ` · ${esc(c.syllabus)}` : c.src && c.src.startsWith('prephub') ? ` · ${esc(c.subtopic)}` : ''}</div>
       <button class="more">more</button>
       <p class="summary">${esc(c.summary)}<br><span class="small">From: ${esc(c.videoTitle)}</span></p>
     </div>

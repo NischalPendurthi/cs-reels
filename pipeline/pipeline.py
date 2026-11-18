@@ -47,6 +47,20 @@ CLAUDE = shutil.which("claude") or os.path.expanduser("~/.local/bin/claude")
 TODAY = dt.date.today().isoformat()
 _log_file = None
 
+# Videos that failed for a temporary reason (YouTube rate-limit / IP block, network):
+# they are not marked processed, so a later run retries them.
+import threading
+_retry_lock = threading.Lock()
+RETRY = set()
+YT_BLOCKED = threading.Event()  # set once YouTube blocks transcript fetching
+PERMANENT_TRANSCRIPT_ERRORS = {"NoTranscriptFound", "TranscriptsDisabled", "VideoUnavailable",
+                               "VideoUnplayable", "AgeRestricted", "InvalidVideoId"}
+
+
+def retry_later(video_id):
+    with _retry_lock:
+        RETRY.add(video_id)
+
 
 def log(*a):
     line = f"[{dt.datetime.now().strftime('%H:%M:%S')}] " + " ".join(str(x) for x in a)
@@ -137,6 +151,9 @@ def yt_meta(video_id):
 
 def yt_transcript(video_id, languages):
     from youtube_transcript_api import YouTubeTranscriptApi
+    if YT_BLOCKED.is_set():
+        retry_later(video_id)
+        return None
     api = YouTubeTranscriptApi()
     try:
         tl = api.list(video_id)
@@ -147,7 +164,16 @@ def yt_transcript(video_id, languages):
         snippets = t.fetch().snippets
         return [{"t": s.start, "d": s.duration, "text": s.text.replace("\n", " ")} for s in snippets]
     except Exception as e:
-        log("  no transcript:", type(e).__name__)
+        name = type(e).__name__
+        if name not in PERMANENT_TRANSCRIPT_ERRORS:
+            retry_later(video_id)
+            if name in ("IpBlocked", "RequestBlocked", "TooManyRequests", "YouTubeRequestFailed"):
+                if not YT_BLOCKED.is_set():
+                    log(f"  YouTube is blocking transcript requests ({name}); "
+                        "remaining videos will be retried next run")
+                YT_BLOCKED.set()
+                return None
+        log("  no transcript:", name)
         return None
 
 
@@ -168,7 +194,8 @@ def transcript_blocks(snips, block_sec=8):
 
 # ---------------------------------------------------------------- Claude
 
-SYSTEM_PROMPT_TMPL = """You are a strict curator for a short-video learning app on core computer science (DBMS, computer networks, computer architecture, C++, AI/ML).
+SYSTEM_PROMPT_TMPL = """You are a strict curator for a short-video learning app for CS interview prep (C++, operating systems, computer networks, DBMS, computer architecture, AI/ML and LLMs).
+The viewer only wants material from a fixed interview syllabus. Every reel must squarely teach one syllabus item; anything else is dropped, however good it is.
 The viewer is {audience}.
 You read YouTube transcripts and turn them into reels: short, self-contained clips that each teach exactly one idea in depth.
 You are picky. Prefer segments with real substance: how something works internally, why it is designed that way, trade-offs, worked examples, math, edge cases, performance implications. Skip slow beginner recaps, definitions everyone knows, motivational talk, admin/logistics, Q&A chatter, intros/outros, sponsor segments and "as we saw last time" set-up.
@@ -199,6 +226,8 @@ CLIP_PROPS = {
     "clarity": {"type": "integer", "minimum": 1, "maximum": 10},
     "depth": {"type": "integer", "minimum": 1, "maximum": 10},
     "quiz": QUIZ_SCHEMA,
+    "syllabus_item": {"type": "integer",
+                      "description": "number of the syllabus item this clip squarely teaches; -1 if none"},
 }
 
 PICK_SCHEMA = {
@@ -255,10 +284,17 @@ def claude_json(prompt, schema, cfg):
     return None, 0.0
 
 
+def syllabus_listing(topic):
+    return "\n".join(f"{i}. {it['t']}" for i, it in enumerate(topic["items"]))
+
+
 def lecture_prompt(video, meta, topic, subtopic, blocks):
     chapters = "\n".join(f"[{c['t']}] {c['title']}" for c in meta["chapters"]) or "(none)"
     return f"""Topic: {topic['name']}
 Subtopic we are teaching today: {subtopic}
+Syllabus for {topic['name']} (the ONLY allowed material):
+{syllabus_listing(topic)}
+
 Video: "{video['title']}" by {video['channel']} ({meta['duration']}s long)
 Chapters:
 {chapters}
@@ -270,7 +306,7 @@ Rules:
 - start = the [seconds] timestamp of the block where the explanation begins (a sentence start, not mid-thought).
 - end = the timestamp of the first block AFTER the explanation finishes.
 - Clips must not overlap. Keep them in video order.
-- Concepts relevant to {topic['name']} are fine even if not exactly "{subtopic}".
+- Every clip must squarely teach one syllabus item above; set syllabus_item to its number. Leave out segments that only touch a syllabus item in passing, and anything not on the syllabus (other {topic['name']} topics, research talks, tooling, history, career talk).
 - Add a quiz (4 options, one correct, answer = index 0-3) for clips that teach something testable; otherwise quiz = null.
 
 Transcript ([seconds] text):
@@ -280,10 +316,14 @@ Transcript ([seconds] text):
 
 def short_prompt(video, meta, topic, subtopic, blocks):
     return f"""Topic: {topic['name']} (searched for: {subtopic})
+Syllabus for {topic['name']} (the ONLY allowed material):
+{syllabus_listing(topic)}
+
 YouTube Short: "{video['title']}" by {video['channel']} ({meta['duration']}s)
 Description: {meta['description'][:600]}
 
 Judge whether this Short actually teaches a core CS concept with substance (educational = false for memes, motivation, career talk, "POV", setups, hype, news, course ads, or trivially shallow content).
+Set syllabus_item to the number of the syllabus item it squarely teaches, or -1 if it is not on the syllabus.
 Score it and write title/hook/concept/summary. Add a quiz if it teaches something testable, else null.
 
 Transcript ([seconds] text):
@@ -327,7 +367,7 @@ def pick_lecture(topic, subtopic, cfg, state):
         return None, None
     listing = "\n".join(f"{i}. \"{v['title']}\" by {v['channel']} ({v['duration'] // 60} min)"
                         for i, v in enumerate(cands))
-    prompt = (f"Subtopic to teach: {subtopic} ({topic['name']})\n\nCandidate videos:\n{listing}\n\n"
+    prompt = (f"Syllabus item to teach: {subtopic} ({topic['name']})\n\nCandidate videos:\n{listing}\n\n"
               "Rank up to 3 candidates that teach this subtopic most rigorously and in depth for the viewer. "
               "Prefer university lectures and expert deep-dives that are squarely on this subtopic. "
               "Exclude off-topic videos, talks about unrelated research, interviews, news and announcements.")
@@ -365,6 +405,11 @@ def pick_shorts(topic, subtopic, cfg, state, limit):
 
 # ---------------------------------------------------------------- processing
 
+def on_syllabus(c, topic):
+    i = c.get("syllabus_item", -1)
+    return isinstance(i, int) and 0 <= i < len(topic["items"])
+
+
 def passes(c, cfg, src="search"):
     q = cfg["quality"]
     s = [c["accuracy"], c["standalone"], c["clarity"], c.get("depth", 0)]
@@ -390,7 +435,7 @@ def clean_quiz(qz):
             "answer": order.index(int(qz["answer"])), "explanation": qz.get("explanation", "")}
 
 
-def make_clip(video, meta, topic_key, subtopic, c, start, end, kind, seq):
+def make_clip(video, meta, topic_key, topic, subtopic, c, start, end, kind, seq):
     return {
         "id": f"{video['id']}_{start}",
         "videoId": video["id"],
@@ -400,6 +445,7 @@ def make_clip(video, meta, topic_key, subtopic, c, start, end, kind, seq):
         "vertical": kind == "short" or meta["aspect"] < 1,
         "topic": topic_key,
         "subtopic": subtopic,
+        "syllabus": topic["items"][c["syllabus_item"]]["t"],
         "title": c["title"].strip(),
         "hook": c["hook"].strip(),
         "concept": c["concept"].strip(),
@@ -426,17 +472,21 @@ def process_lecture(job, cfg):
         return [], cost
     save_json(os.path.join(LLM_CACHE, f"{video['id']}.json"),
               {"video": video, "topic": topic_key, "subtopic": subtopic, "kind": "lecture", "out": out})
-    clips, last_end = [], -1
+    clips, last_end, off = [], -1, 0
     dur = meta["duration"] or video["duration"]
     for i, c in enumerate(sorted(out.get("clips", []), key=lambda c: c["start"])):
         start, end = max(0, int(c["start"])), min(int(c["end"]), dur)
         if end - start < 30 or end - start > 240 or start < last_end:
             continue
+        if not on_syllabus(c, topic):
+            off += 1
+            continue
         if not passes(c, cfg, video.get("src", "search")):
             continue
         last_end = end
-        clips.append(make_clip(video, meta, topic_key, subtopic, c, start, end, "lecture", i))
-    log(f"  lecture '{video['title'][:60]}' ({video['channel']}): {len(out.get('clips', []))} cut, {len(clips)} kept")
+        clips.append(make_clip(video, meta, topic_key, topic, subtopic, c, start, end, "lecture", i))
+    log(f"  lecture '{video['title'][:60]}' ({video['channel']}): {len(out.get('clips', []))} cut, "
+        f"{off} off-syllabus, {len(clips)} kept")
     return clips, cost
 
 
@@ -452,12 +502,15 @@ def process_short(job, cfg, state):
     if not out or not out.get("educational"):
         log(f"  short '{video['title'][:50]}': rejected (not educational)")
         return [], cost
+    if not on_syllabus(out, topic):
+        log(f"  short '{video['title'][:50]}': rejected (off-syllabus)")
+        return [], cost
     if not passes(out, cfg, video.get("src", "search")):
         log(f"  short '{video['title'][:50]}': rejected (scores)")
         return [], cost
     dur = meta["duration"] or video["duration"]
     log(f"  short '{video['title'][:50]}' ({video['channel']}): kept")
-    return [make_clip(video, meta, topic_key, subtopic, out, 0, dur, "short", 0)], cost
+    return [make_clip(video, meta, topic_key, topic, subtopic, out, 0, dur, "short", 0)], cost
 
 
 # ---------------------------------------------------------------- feedback
@@ -530,9 +583,12 @@ def rebuild_index():
         for c in d["clips"]:
             by_topic[c["topic"]] = by_topic.get(c["topic"], 0) + 1
         days.append({"date": d["date"], "file": f"days/{os.path.basename(path)}", "count": n})
-    save_json(os.path.join(APP_DATA, "index.json"),
-              {"updated": dt.datetime.now().isoformat(timespec="seconds"),
-               "total": total, "byTopic": by_topic, "days": days}, indent=1)
+    path = os.path.join(APP_DATA, "index.json")
+    old = load_json(path, {})
+    new = {"total": total, "byTopic": by_topic, "days": days}
+    if {k: old.get(k) for k in new} == new:
+        return  # nothing changed: don't touch the file, so no pointless deploy
+    save_json(path, {"updated": dt.datetime.now().isoformat(timespec="seconds"), **new}, indent=1)
 
 
 def git_publish(n_new):
@@ -541,12 +597,31 @@ def git_publish(n_new):
     def g(*args):
         return subprocess.run(["git", "-C", ROOT, *args], capture_output=True, text=True)
     g("add", "app/data", "pipeline/state.json")
-    if g("diff", "--cached", "--quiet").returncode == 0:
+    if g("diff", "--cached", "--quiet").returncode != 0:
+        # commit only the feed files, even if other work is staged
+        r = g("commit", "-m", f"feed: {TODAY} +{n_new} clips", "--", "app/data", "pipeline/state.json")
+        if r.returncode != 0:
+            log("git commit failed:", (r.stderr or r.stdout).strip()[-300:])
+            return
+    if not g("remote").stdout.strip():
         return
-    g("commit", "-m", f"feed: {TODAY} +{n_new} clips")
-    if g("remote").stdout.strip():
-        r = g("push")
-        log("git push:", "ok" if r.returncode == 0 else r.stderr.strip()[-200:])
+    # Push whatever is unpushed (also earlier feed commits whose push failed).
+    # GitHub Pages redeploys when app/ changes on main.
+    for attempt in range(3):
+        r = g("push", "origin", "HEAD:main")
+        if r.returncode == 0:
+            log("git push: ok")
+            return
+        err = r.stderr.strip()[-300:]
+        if "rejected" in err or "fetch first" in err or "non-fast-forward" in err:
+            pr = g("pull", "--rebase", "--autostash", "origin", "main")
+            if pr.returncode != 0:
+                g("rebase", "--abort")
+                log("git pull --rebase failed, fix by hand:", pr.stderr.strip()[-300:])
+                return
+        else:
+            time.sleep(30 * (attempt + 1))  # network hiccup
+    log("git push failed:", err)
 
 
 # ---------------------------------------------------------------- Prep Hub syllabus
@@ -569,7 +644,8 @@ def prephub_queue(cfg, state, topic_keys):
             log(f"  prep-hub: {src}.json not found in {root}")
             continue
         for s in d.get("subtopics", []):
-            if s.get("key") in ph.get("skip_subtopics", []):
+            skip = ph.get("skip_subtopics", [])
+            if s.get("key") in skip or f"{src}/{s.get('key')}" in skip:
                 continue
             for p in s.get("picks", []):
                 if p.get("kind") != "v" or p["id"] in state["processed"]:
@@ -602,6 +678,10 @@ def main():
     global SYSTEM_PROMPT
     cfg = load_json(CONFIG_PATH, None)
     SYSTEM_PROMPT = SYSTEM_PROMPT_TMPL.format(audience=cfg["audience"])
+    syllabus = load_json(os.path.join(PIPE, cfg.get("syllabus_file", "syllabus.json")), {})
+    for k, topic in cfg["topics"].items():
+        topic["items"] = syllabus[k]
+        topic["syllabus"] = [it["q"] for it in syllabus[k]]
     state = load_json(STATE_PATH, {})
     state.setdefault("pointer", {})
     state.setdefault("rotation", 0)
@@ -660,6 +740,9 @@ def main():
     order = {}  # videoId -> position, so the feed keeps syllabus order
     for k, it in plan_ph:
         meta = yt_meta(it["id"])
+        if not meta:
+            log(f"  prep-hub: no metadata (will retry next run): {it['title'][:60]}")
+            continue
         state["processed"][it["id"]] = TODAY
         if not (meta and meta["embeddable"] and meta["public"] and meta["age_limit"] == 0):
             log(f"  prep-hub skip (not embeddable/available): {it['title'][:60]}")
@@ -716,10 +799,16 @@ def main():
     all_clips.sort(key=lambda c: (order.get(c["videoId"], 10**6), c["topic"], c["videoId"], c["seq"]))
     write_outputs(all_clips)
 
+    for vid in RETRY:
+        state["processed"].pop(vid, None)
+    if RETRY:
+        log(f"  {len(RETRY)} videos hit temporary YouTube/network errors; they will be retried")
+
     by_topic = {}
     for c in all_clips:
         by_topic[c["topic"]] = by_topic.get(c["topic"], 0) + 1
-    state["last_run"] = TODAY
+    if not YT_BLOCKED.is_set():  # if YouTube blocked us, let the next trigger today try again
+        state["last_run"] = TODAY
     state["runs"].append({"date": TODAY, "clips": len(all_clips), "lectures": len(jobs_l),
                           "shorts": len(jobs_s), "byTopic": by_topic, "cost_usd": round(cost, 4)})
     state["runs"] = state["runs"][-120:]
@@ -729,4 +818,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        log("pipeline crashed:", traceback.format_exc()[-1500:])
+        raise

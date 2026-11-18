@@ -1,7 +1,7 @@
 // Network-first for everything (the app needs the network for YouTube anyway).
 // The cache is only a fallback so the shell still opens offline.
 // Network-first also means app updates show up on the very next launch.
-const CACHE = 'csreels-v4';
+const CACHE = 'csreels-v5';
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => {
