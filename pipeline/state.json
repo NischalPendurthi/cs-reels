@@ -1,13 +1,13 @@
 {
  "pointer": {
-  "dbms": 4,
-  "coa": 3,
-  "aiml": 3,
-  "cpp": 3,
-  "os": 3,
-  "cn": 3
+  "dbms": 5,
+  "coa": 5,
+  "aiml": 5,
+  "cpp": 4,
+  "os": 4,
+  "cn": 4
  },
- "rotation": 4,
+ "rotation": 0,
  "processed": {
   "RdZSrD4DUvs": "2026-11-14",
   "IZ_PnVXtMeY": "2026-11-14",
@@ -167,7 +167,18 @@
   "kAyXG89p2-o": "2026-11-19",
   "gJwuEelsgXk": "2026-11-19",
   "v_2dwdxKMvg": "2026-11-19",
-  "rPV6b8BUwxM": "2026-11-19"
+  "rPV6b8BUwxM": "2026-11-19",
+  "reYWQUTAyGc": "2026-11-20",
+  "c9JDVyUazKE": "2026-11-20",
+  "fkf4IBRSeEc": "2026-11-20",
+  "xGDLkt-jBJ4": "2026-11-20",
+  "cIHiSR4j3g4": "2026-11-20",
+  "B2fWjPGh-EU": "2026-11-20",
+  "q30W7ApRqjI": "2026-11-20",
+  "DiNzQP7kK-s": "2026-11-20",
+  "w-CXIqIjfRI": "2026-11-20",
+  "953NHzFtGHc": "2026-11-20",
+  "hVjvo_cXHrU": "2026-11-20"
  },
  "runs": [
   {
@@ -300,6 +311,20 @@
     "os": 3
    },
    "cost_usd": 0.5395
+  },
+  {
+   "date": "2026-11-20",
+   "clips": 29,
+   "lectures": 7,
+   "shorts": 3,
+   "byTopic": {
+    "coa": 7,
+    "aiml": 5,
+    "cpp": 8,
+    "cn": 5,
+    "dbms": 4
+   },
+   "cost_usd": 0.6167
   }
  ],
  "channel_names": {
@@ -335,7 +360,7 @@
   "YannicKilcher": "Yannic Kilcher",
   "SerranoAcademy": "Luis Serrano Academy"
  },
- "last_run": "2026-11-19",
+ "last_run": "2026-11-20",
  "creator_indian": {
   "CppCon": false,
   "Yannic Kilcher": false,
@@ -352,6 +377,9 @@
   "Chris Greer": false,
   "MIT OpenCourseWare": false,
   "Mike Shah": false,
-  "Low Level": false
+  "Low Level": false,
+  "JimKurose": false,
+  "StatQuest with Josh Starmer": false,
+  "The Cherno": false
  }
 }
